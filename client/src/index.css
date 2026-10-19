@@ -1,0 +1,298 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  body {
+    background-color: #F9F7F2;
+    color: #0B2545;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: #FF6B45;
+    color: #ffffff;
+  }
+}
+
+/* Custom Scrollbar for sleek travel UI */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F9F7F2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5CEBE;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B6AE9C;
+}
+
+/* Glassmorphism surfaces */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(229, 225, 213, 0.6);
+}
+
+.glass-nav {
+  background: rgba(249, 247, 242, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(229, 225, 213, 0.7);
+}
+
+/* Presence ping animation */
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.4;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Hide scrollbar utility for clean horizontal category carousel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   Celestial Themes: Sunrise, Sunset (Golden Hour), and Starlight Moon (Dark)
+   ========================================================================== */
+
+/* Dark Mode / Starlight Moon */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0A111E;
+  color: #F1F5F9;
+}
+
+html.dark ::selection {
+  background-color: #FF6B45;
+  color: #ffffff;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #0A111E;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1E293B;
+}
+
+html.dark .bg-brand-sand {
+  background-color: #0A111E;
+}
+
+html.dark .bg-white {
+  background-color: #111C2E;
+}
+
+html.dark .bg-brand-sand\/30,
+html.dark .bg-brand-sand\/40,
+html.dark .bg-brand-sand\/50,
+html.dark .bg-brand-sand\/60,
+html.dark .bg-brand-sand\/70,
+html.dark .bg-brand-sand\/90 {
+  background-color: #16243A;
+}
+
+html.dark .border-brand-sand-border,
+html.dark .border-brand-sand-border\/60,
+html.dark .border-brand-sand-border\/80 {
+  border-color: #1E2D42;
+}
+
+html.dark .text-brand-navy {
+  color: #F1F5F9;
+}
+
+html.dark .text-brand-navy\/40,
+html.dark .text-brand-navy\/50,
+html.dark .text-brand-navy\/60,
+html.dark .text-brand-navy\/70,
+html.dark .text-brand-navy\/80 {
+  color: #94A3B8;
+}
+
+html.dark .glass-nav {
+  background: rgba(10, 17, 30, 0.92);
+  border-bottom: 1px solid rgba(30, 45, 66, 0.7);
+}
+
+html.dark .glass-panel {
+  background: rgba(17, 28, 46, 0.88);
+  border: 1px solid rgba(30, 45, 66, 0.6);
+}
+
+/* Sunset / Golden Hour Theme */
+html.theme-sunset body {
+  background-color: #1A1020;
+  color: #FFF2EB;
+}
+
+html.theme-sunset .bg-brand-sand {
+  background-color: #1A1020;
+}
+
+html.theme-sunset .bg-white {
+  background-color: #271630;
+}
+
+html.theme-sunset .bg-brand-sand\/30,
+html.theme-sunset .bg-brand-sand\/40,
+html.theme-sunset .bg-brand-sand\/50,
+html.theme-sunset .bg-brand-sand\/60,
+html.theme-sunset .bg-brand-sand\/70,
+html.theme-sunset .bg-brand-sand\/90 {
+  background-color: #341E40;
+}
+
+html.theme-sunset .border-brand-sand-border,
+html.theme-sunset .border-brand-sand-border\/60,
+html.theme-sunset .border-brand-sand-border\/80 {
+  border-color: #4D2D5E;
+}
+
+html.theme-sunset .text-brand-navy {
+  color: #FFF2EB;
+}
+
+html.theme-sunset .text-brand-navy\/40,
+html.theme-sunset .text-brand-navy\/50,
+html.theme-sunset .text-brand-navy\/60,
+html.theme-sunset .text-brand-navy\/70,
+html.theme-sunset .text-brand-navy\/80 {
+  color: #D6B7CE;
+}
+
+html.theme-sunset .glass-nav {
+  background: rgba(26, 16, 32, 0.92);
+  border-bottom: 1px solid rgba(77, 45, 94, 0.7);
+}
+
+html.theme-sunset .glass-panel {
+  background: rgba(39, 22, 48, 0.88);
+  border: 1px solid rgba(77, 45, 94, 0.6);
+}
+
+/* Celestial Glow Animations */
+@keyframes celestialFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(4deg);
+  }
+}
+
+.animate-celestial {
+  animation: celestialFloat 3s ease-in-out infinite;
+}
+
+@keyframes sunRays {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-sun-rays {
+  animation: sunRays 18s linear infinite;
+}
+
+@keyframes starTwinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.animate-twinkle {
+  animation: starTwinkle 2.4s ease-in-out infinite;
+}
+
+/* Smooth theme transitions */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 250ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Google Gemini Floating Bubble animations */
+@keyframes geminiGlowPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+}
+
+.animate-gemini-glow {
+  animation: geminiGlowPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes geminiFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-gemini-float {
+  animation: geminiFloat 3.6s ease-in-out infinite;
+}
+
+/* Leaflet Custom Hotel Price Pins & Map Styling */
+.custom-hotel-pin {
+  background: transparent !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.leaflet-container {
+  font-family: inherit !important;
+  background-color: #0B1528 !important;
+}
+
+
+
