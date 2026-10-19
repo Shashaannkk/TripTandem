@@ -154,7 +154,7 @@ export const CinematicHero = () => {
         </div>
 
         {/* Main Headline */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold text-white tracking-tight leading-[1.08] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] max-w-4xl mx-auto">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight leading-[1.08] drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)] max-w-4xl mx-auto">
           India is waiting.{' '}
           <span className="block sm:inline text-transparent bg-clip-text bg-gradient-to-r from-brand-orange via-brand-yellow to-brand-orange drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]">
             Let's go together.

@@ -88,31 +88,31 @@ export const TripHeader = () => {
           </div>
 
           {/* Quick Drawer Toggles */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             
             {/* AI Concierge Toggle */}
             <button
               onClick={() => setIsAiConciergeOpen(!isAiConciergeOpen)}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 isAiConciergeOpen
                   ? 'bg-brand-navy text-white shadow-sm'
                   : 'bg-brand-orange-light text-brand-orange hover:bg-brand-orange hover:text-white'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span>AI Concierge</span>
             </button>
 
             {/* Chat Drawer Toggle */}
             <button
               onClick={() => setIsChatOpen(!isChatOpen)}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 isChatOpen
                   ? 'bg-brand-navy text-white shadow-sm'
                   : 'bg-brand-sand hover:bg-brand-sand-muted text-brand-navy'
               }`}
             >
-              <MessageSquare className="w-4 h-4 text-brand-teal" />
+              <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-teal shrink-0" />
               <span>Group Chat</span>
               {trip.chat && trip.chat.length > 0 && (
                 <span className="w-2 h-2 rounded-full bg-brand-orange" />
@@ -122,9 +122,9 @@ export const TripHeader = () => {
             {/* Invite Button */}
             <button
               onClick={() => setIsInviteModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold bg-brand-teal hover:bg-brand-teal-hover text-white shadow-sm transition-all"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold bg-brand-teal hover:bg-brand-teal-hover text-white shadow-sm transition-all cursor-pointer"
             >
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span>Invite Friends</span>
             </button>
 

@@ -39,6 +39,8 @@ async function safeJson(res) {
     console.warn('safeJson parse suppressed:', err);
     return null;
   }
+}
+
 export function decodeGoogleJwt(jwtToken) {
   if (!jwtToken || typeof jwtToken !== 'string') return null;
   try {

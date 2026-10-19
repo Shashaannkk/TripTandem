@@ -59,11 +59,11 @@ export const JoinTripPage = () => {
 
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow-md">
-              {trip?.title || 'Goa Collaborative Coastal Escape'}
+              {displayedTrip?.title || 'Goa Collaborative Coastal Escape'}
             </h1>
             <p className="text-xs text-white/90 flex items-center gap-1.5 mt-1 drop-shadow-sm">
               <MapPin className="w-3.5 h-3.5" />
-              <span>{trip?.destination || 'Goa, India'}</span>
+              <span>{displayedTrip?.destination || 'Goa, India'}</span>
             </p>
           </div>
         </div>

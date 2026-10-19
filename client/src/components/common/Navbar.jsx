@@ -155,7 +155,7 @@ export const Navbar = () => {
                 type="button"
                 onClick={() => {
                   setIsCurrencyMenuOpen(!isCurrencyMenuOpen);
-                  setIsPersonaMenuOpen(false);
+                  setIsProfileMenuOpen(false);
                 }}
                 className="px-2.5 py-1.5 rounded-full text-xs font-semibold bg-white dark:bg-[#111C2E] border border-brand-sand-border dark:border-[#1E2D42] text-brand-navy dark:text-slate-200 hover:border-brand-navy/40 transition-colors flex items-center gap-1 shadow-subtle shrink-0"
               >

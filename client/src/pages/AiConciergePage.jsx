@@ -501,7 +501,7 @@ export const AiConciergePage = () => {
         {/* Console Input Bar */}
         <form
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="bg-white dark:bg-slate-900 rounded-full p-2 pl-6 border border-brand-sand-border dark:border-slate-700 shadow-search flex items-center gap-3 sticky bottom-6 z-20"
+          className="bg-white dark:bg-slate-900 rounded-full p-2 pl-4 sm:pl-6 border border-brand-sand-border dark:border-slate-700 shadow-search flex items-center gap-2 sm:gap-3 sticky bottom-20 lg:bottom-6 z-20"
         >
           <input
             type="text"

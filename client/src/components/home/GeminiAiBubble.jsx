@@ -203,13 +203,13 @@ export const GeminiAiBubble = ({ destination = '' }) => {
     navigate(`/workspace/${newTrip.id}`);
   };
 
+  // Responsive floating container for phone, tablet, and laptop
   return (
-    /* Positioned 20px more to the left and 15px down, fixed firmly in place */
-    <div className="fixed bottom-[79px] sm:bottom-[47px] right-[86px] sm:right-[102px] z-50 flex flex-col items-end pointer-events-auto">
+    <div className="fixed bottom-[72px] lg:bottom-6 right-4 sm:right-6 lg:right-8 z-50 flex flex-col items-end pointer-events-auto">
       
       {/* Compact Interactive Floating Chat Window */}
       {isOpen && (
-        <div className="mb-3 w-[92vw] sm:w-[400px] h-[520px] max-h-[75vh] flex flex-col bg-white/95 dark:bg-[#0E1A2E]/95 backdrop-blur-2xl rounded-3xl shadow-[0_24px_60px_rgba(11,37,69,0.35)] border border-brand-sand-border dark:border-indigo-500/30 text-left animate-fadeIn transition-all overflow-hidden">
+        <div className="fixed inset-x-3 bottom-[136px] sm:static sm:inset-auto mb-3 w-auto sm:w-[400px] max-w-[calc(100vw-24px)] h-[520px] max-h-[72vh] flex flex-col bg-white/95 dark:bg-[#0E1A2E]/95 backdrop-blur-2xl rounded-3xl shadow-[0_24px_60px_rgba(11,37,69,0.35)] border border-brand-sand-border dark:border-indigo-500/30 text-left animate-fadeIn transition-all overflow-hidden">
           
           {/* Header featuring Cute 3D Robot Mascot with Backpack */}
           <div className="flex items-center justify-between p-3.5 border-b border-brand-sand-border dark:border-slate-800 bg-brand-sand/50 dark:bg-slate-900/60 shrink-0">

@@ -333,11 +333,11 @@ export const VenueDetailModal = ({ venue, onClose }) => {
               </div>
 
               {/* Action Mode Toggle */}
-              <div className="grid grid-cols-2 p-1 rounded-2xl bg-white border border-brand-sand-border text-[11px] font-bold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 p-1 gap-1 rounded-2xl bg-white border border-brand-sand-border text-[11px] font-bold">
                 <button
                   type="button"
                   onClick={() => setActionMode('book_itinerary')}
-                  className={`py-2 px-1 rounded-xl transition-all ${
+                  className={`py-2 px-2 rounded-xl transition-all ${
                     actionMode === 'book_itinerary'
                       ? 'bg-brand-orange text-white shadow-sm'
                       : 'text-brand-navy/70 hover:text-brand-navy'
@@ -348,7 +348,7 @@ export const VenueDetailModal = ({ venue, onClose }) => {
                 <button
                   type="button"
                   onClick={() => setActionMode('add_existing')}
-                  className={`py-2 px-1 rounded-xl transition-all ${
+                  className={`py-2 px-2 rounded-xl transition-all ${
                     actionMode === 'add_existing'
                       ? 'bg-brand-navy text-white shadow-sm'
                       : 'text-brand-navy/70 hover:text-brand-navy'

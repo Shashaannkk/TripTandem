@@ -395,7 +395,7 @@ export const ExplorePage = () => {
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             
             {/* Integrated Quick Search Console */}
-            <div className="flex-1 bg-brand-sand/70 p-1.5 rounded-2xl sm:rounded-full border border-brand-sand-border flex flex-col sm:flex-row items-stretch sm:items-center divide-y sm:divide-y-0 sm:divide-x divide-brand-sand-border gap-1 sm:gap-0">
+            <div className="flex-1 bg-brand-sand/70 p-1.5 rounded-2xl xl:rounded-full border border-brand-sand-border flex flex-col xl:flex-row items-stretch xl:items-center divide-y xl:divide-y-0 xl:divide-x divide-brand-sand-border gap-1 xl:gap-0">
               
               {/* 1. Destination Autocomplete */}
               <div className="px-3.5 py-1.5 flex-1 min-w-[200px] flex items-center gap-2">
@@ -455,7 +455,7 @@ export const ExplorePage = () => {
             </div>
 
             {/* View Mode & Sort Controls */}
-            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 shrink-0">
               
               {/* Free OpenStreetMap Hotels Live Discovery Button (Free API) */}
               <button

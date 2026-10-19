@@ -257,7 +257,7 @@ export const ThemedDatePicker = ({
 
       {/* Floating Themed Calendar Popover (Positioned on the Upper Side) */}
       {isOpen && (
-        <div className="absolute left-0 sm:-left-8 bottom-full mb-3 z-50 w-[320px] sm:w-[350px] bg-white/98 backdrop-blur-2xl rounded-3xl shadow-floating border border-brand-sand-border p-4 animate-fadeIn select-none text-brand-navy">
+        <div className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 sm:-left-8 bottom-full mb-3 z-50 w-[300px] sm:w-[350px] max-w-[calc(100vw-24px)] bg-white/98 backdrop-blur-2xl rounded-3xl shadow-floating border border-brand-sand-border p-3 sm:p-4 animate-fadeIn select-none text-brand-navy">
           
           {/* Active Field Mode Switcher Header */}
           <div className="flex items-center justify-between pb-3 border-b border-brand-sand-border">

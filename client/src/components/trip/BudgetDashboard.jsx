@@ -240,7 +240,7 @@ export const BudgetDashboard = () => {
           </div>
 
           {/* Equal vs Weighted Split Pill */}
-          <div className="inline-flex p-1 rounded-full bg-brand-sand border border-brand-sand-border">
+          <div className="flex flex-col sm:inline-flex sm:flex-row p-1 rounded-2xl sm:rounded-full bg-brand-sand border border-brand-sand-border gap-1 sm:gap-0">
             <button
               onClick={() => toggleSplitMode('equal')}
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -371,7 +371,7 @@ export const BudgetDashboard = () => {
                   </div>
 
                   {/* Settlement Actions */}
-                  <div className="pt-2 border-t border-brand-sand-border/60 flex items-center justify-between text-xs gap-2">
+                  <div className="pt-2 border-t border-brand-sand-border/60 flex flex-wrap items-center justify-between text-xs gap-2">
                     <button
                       type="button"
                       onClick={() => {

@@ -78,7 +78,7 @@ export const GuestRoomSelector = ({
 
       {/* Floating Selector Popover (Positioned on the Upper Side) */}
       {isOpen && (
-        <div className="absolute right-0 sm:left-0 bottom-full mb-3 z-50 w-[310px] sm:w-[340px] bg-white/98 backdrop-blur-2xl rounded-3xl shadow-floating border border-brand-sand-border p-4 animate-fadeIn select-none text-brand-navy">
+        <div className="absolute right-0 sm:left-0 bottom-full mb-3 z-50 w-[295px] sm:w-[340px] max-w-[calc(100vw-24px)] bg-white/98 backdrop-blur-2xl rounded-3xl shadow-floating border border-brand-sand-border p-3 sm:p-4 animate-fadeIn select-none text-brand-navy">
           
           <div className="flex items-center justify-between pb-3 border-b border-brand-sand-border">
             <span className="text-xs font-bold uppercase tracking-wider text-brand-navy">
