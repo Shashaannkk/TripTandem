@@ -25,7 +25,7 @@ import { api } from '../services/api';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, showToast } = useAuth();
+  const { login, loginAsDemo, showToast } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -330,6 +330,24 @@ export const LoginPage = () => {
                   </>
                 )}
               </button>
+
+              {/* 1-Click Fast Demo Traveler Login */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loginAsDemo(0);
+                    setIsSuccess(true);
+                    setTimeout(() => {
+                      navigate(from, { replace: true });
+                    }, 500);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-brand-sand/80 dark:bg-slate-800 hover:bg-brand-sand border border-brand-sand-border dark:border-slate-700 text-brand-navy dark:text-slate-200 text-xs font-semibold hover:border-brand-teal transition-all active:scale-[0.99]"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-brand-teal" />
+                  <span>1-Click Demo Traveler Sign-In (Alex Morgan)</span>
+                </button>
+              </div>
 
             </form>
 

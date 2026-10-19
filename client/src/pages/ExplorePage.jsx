@@ -72,6 +72,25 @@ export const ExplorePage = () => {
 
   // Live Venues state loaded from backend / mockData
   const [venuesList, setVenuesList] = useState(VENUES);
+  const [weatherData, setWeatherData] = useState(null);
+  const [isWeatherLoading, setIsWeatherLoading] = useState(false);
+
+  const fetchRealtimeWeather = async (targetDest) => {
+    const dest = targetDest || searchQuery.trim() || 'Udupi';
+    setIsWeatherLoading(true);
+    try {
+      const data = await api.getWeather(dest);
+      setWeatherData(data);
+    } catch (e) {
+      console.warn('Live weather fetch error:', e);
+    } finally {
+      setIsWeatherLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRealtimeWeather(searchQuery);
+  }, [searchQuery]);
 
   const loadVenues = async () => {
     try {
@@ -564,6 +583,66 @@ export const ExplorePage = () => {
               </button>
             </div>
           )}
+
+          {/* Karnataka Beachfront Highlights & Real-Time Coastal API Strip */}
+          <div className="mt-2.5 pt-2 border-t border-brand-sand-border/50 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[11px] font-bold text-brand-navy/60 dark:text-slate-400">
+                  Karnataka Beachfront:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('Udupi');
+                    updateSearchUrl('Udupi', checkIn, checkOut, guests, rooms);
+                    fetchRealtimeWeather('Udupi');
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    searchQuery.toLowerCase().includes('udupi') || searchQuery.toLowerCase().includes('malpe') || searchQuery.toLowerCase().includes('kaup')
+                      ? 'bg-brand-orange text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-brand-navy dark:text-slate-200 border border-brand-sand-border dark:border-slate-700 hover:border-brand-orange'
+                  }`}
+                >
+                  <span>🏖️ Udupi Beachfront (Malpe & Kaup)</span>
+                  <span className="text-[9px] bg-white/20 px-1 rounded-full">6 Stays</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('Mangalore');
+                    updateSearchUrl('Mangalore', checkIn, checkOut, guests, rooms);
+                    fetchRealtimeWeather('Mangalore');
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    searchQuery.toLowerCase().includes('mangalore') || searchQuery.toLowerCase().includes('panambur')
+                      ? 'bg-brand-teal text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-brand-navy dark:text-slate-200 border border-brand-sand-border dark:border-slate-700 hover:border-brand-teal'
+                  }`}
+                >
+                  <span>🌊 Mangalore Coast (Panambur & Tannirbhavi)</span>
+                  <span className="text-[9px] bg-white/20 px-1 rounded-full">5 Stays</span>
+                </button>
+              </div>
+
+              {/* Real-time Coastal Conditions Pill */}
+              {weatherData?.current && (
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60 text-xs text-teal-900 dark:text-teal-200 animate-fadeIn">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-bold text-[11px]">
+                    Live {weatherData.destination || 'Coast'}: {weatherData.current.temp}°C · {weatherData.current.windSpeed} breeze · {weatherData.current.waveHeight || 'Gentle waves'}
+                  </span>
+                  <button
+                    onClick={() => fetchRealtimeWeather(searchQuery)}
+                    className="p-0.5 rounded text-teal-700 dark:text-teal-300 hover:rotate-180 transition-transform"
+                    title="Refresh real-time API data"
+                  >
+                    <RotateCcw className={`w-3 h-3 ${isWeatherLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* StayingAPI Status Notification Banner */}
           {hotelOffersData && hotelOffersData.status === 'email_unverified' && (

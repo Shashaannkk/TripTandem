@@ -156,6 +156,24 @@ export const FEATURED_DESTINATIONS = [
     trending: true,
     venuesCount: 11,
   },
+  {
+    id: 'dest-udupi',
+    name: 'Udupi',
+    country: 'India',
+    region: 'Coastal Karnataka',
+    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 6,
+  },
+  {
+    id: 'dest-mangalore',
+    name: 'Mangalore',
+    country: 'India',
+    region: 'Coastal Karnataka',
+    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 5,
+  },
 ];
 
 export const VENUES = PLACES_CATALOG;

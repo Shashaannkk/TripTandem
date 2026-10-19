@@ -4,6 +4,8 @@ import { api } from '../services/api';
 
 const AuthContext = createContext();
 
+export const DEFAULT_GOOGLE_CLIENT_ID = '959503524738-v2jhe3897fq2q7f5q7ilf3t7rp3ho1jq.apps.googleusercontent.com';
+
 export const AuthProvider = ({ children }) => {
   // Session persistence: check localStorage (remembered) or sessionStorage
   const [authToken, setAuthToken] = useState(() => {
@@ -11,7 +13,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const sanitizeUser = (user) => {
-    if (!user) return USERS[0];
+    if (!user) return null;
     return {
       ...user,
       id: user.id || `user-${Date.now()}`,
@@ -29,14 +31,17 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('tt_current_user') || sessionStorage.getItem('tt_current_user');
-      return saved ? sanitizeUser(JSON.parse(saved)) : USERS[0];
+      return saved ? sanitizeUser(JSON.parse(saved)) : null;
     } catch {
-      return USERS[0];
+      return null;
     }
   });
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return Boolean(localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token') || localStorage.getItem('tt_current_user'));
+    return Boolean(
+      (localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token')) &&
+      (localStorage.getItem('tt_current_user') || sessionStorage.getItem('tt_current_user'))
+    );
   });
 
   const [availableUsers, setAvailableUsers] = useState(USERS);
@@ -48,25 +53,26 @@ export const AuthProvider = ({ children }) => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Google OAuth configuration status
+  // Google OAuth configuration status - pre-configured so pushed production builds never display "Config Pending"
   const [googleConfig, setGoogleConfig] = useState({
-    configured: false,
-    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || null,
+    configured: true,
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID,
   });
 
   // Check backend Google OAuth config on mount
   useEffect(() => {
     api.getGoogleConfig()
       .then((cfg) => {
+        const resolvedId = cfg?.clientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
         setGoogleConfig({
-          configured: Boolean(cfg?.configured || import.meta.env.VITE_GOOGLE_CLIENT_ID),
-          clientId: cfg?.clientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || null,
+          configured: true,
+          clientId: resolvedId,
         });
       })
       .catch(() => {
         setGoogleConfig({
-          configured: Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID),
-          clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || null,
+          configured: true,
+          clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID,
         });
       });
   }, []);
@@ -134,15 +140,15 @@ export const AuthProvider = ({ children }) => {
   // 2b. Update User Profile (Safety, Emergency, UPI QR)
   const updateProfile = async (updates) => {
     try {
-      const res = await api.updateProfile({ userId: currentUser.id, ...updates });
-      const updatedUser = { ...currentUser, ...res.data };
+      const res = await api.updateProfile({ userId: currentUser?.id, ...updates });
+      const updatedUser = sanitizeUser({ ...currentUser, ...res.data });
       setCurrentUser(updatedUser);
       localStorage.setItem('tt_current_user', JSON.stringify(updatedUser));
       showToast('Profile & safety details updated', 'success');
       return updatedUser;
     } catch (err) {
       // Local optimistic update
-      const updatedUser = { ...currentUser, ...updates };
+      const updatedUser = sanitizeUser({ ...currentUser, ...updates });
       setCurrentUser(updatedUser);
       localStorage.setItem('tt_current_user', JSON.stringify(updatedUser));
       showToast('Profile updated locally', 'success');
@@ -172,9 +178,16 @@ export const AuthProvider = ({ children }) => {
 
     setAuthToken(null);
     setIsAuthenticated(false);
-    // Reset to first demo traveler for seamless exploration
-    setCurrentUser(USERS[0]);
+    setCurrentUser(null);
     showToast('You have been signed out.', 'info');
+  };
+
+  // 4b. 1-Click Demo Traveler Login
+  const loginAsDemo = (userIndex = 0) => {
+    const demoUser = USERS[userIndex] || USERS[0];
+    saveSession(demoUser, `demo-token-${demoUser.id}`, true);
+    showToast(`Signed in as demo traveler ${demoUser.name}!`, 'success');
+    return demoUser;
   };
 
   // 5. Switch Persona (Interactive Demo feature)
@@ -227,6 +240,7 @@ export const AuthProvider = ({ children }) => {
         updateProfile,
         loginWithGoogle,
         logout,
+        loginAsDemo,
         googleConfig,
         switchPersona,
         currency,

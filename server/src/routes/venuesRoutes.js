@@ -6,6 +6,8 @@ const router = express.Router();
 
 // Popular curated Indian travel destinations for instant zero-latency suggestions
 const CURATED_DESTINATIONS = [
+  { name: 'Udupi', state: 'Karnataka', tag: 'Beachfront Resorts & Temple Coast', count: 6, highlight: 'Malpe Beach, Kaup Lighthouse, St. Marys Island' },
+  { name: 'Mangalore', state: 'Karnataka', tag: 'Arabian Sea Shoreline & Coastal Food', count: 5, highlight: 'Panambur Beach, Tannirbhavi, Someshwara' },
   { name: 'Goa', state: 'Goa', tag: 'Beaches & Heritage', count: 18, highlight: 'Baga, Anjuna, Palolem' },
   { name: 'Manali', state: 'Himachal Pradesh', tag: 'Snow Peaks & Valleys', count: 12, highlight: 'Solang Valley, Old Manali' },
   { name: 'Jaipur', state: 'Rajasthan', count: 14, highlight: 'Amber Fort, Hawa Mahal' },

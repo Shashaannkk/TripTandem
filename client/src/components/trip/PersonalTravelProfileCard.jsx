@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Utensils, Wallet, Compass, Check, Edit3, Sparkles } from 'lucide-react';
+import { ShieldCheck, Utensils, Wallet, Compass, Check, Edit3, Sparkles, QrCode, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { createUpiQrSvg } from '../../utils/qrHelper';
 
 const DIETARY_OPTIONS = [
   { id: 'vegetarian', label: 'Vegetarian 🥦' },
@@ -19,7 +20,7 @@ const PREFERRED_CATEGORIES = [
 ];
 
 export const PersonalTravelProfileCard = () => {
-  const { currentUser, formatPrice, showToast } = useAuth();
+  const { currentUser, formatPrice, showToast, updateProfile } = useAuth();
 
   const [preferences, setPreferences] = useState(() => {
     try {
@@ -62,6 +63,43 @@ export const PersonalTravelProfileCard = () => {
     } catch (e) {}
     setIsEditing(false);
     showToast('Updated your Personal Travel DNA profile!', 'success');
+  };
+
+  const [userUpiId, setUserUpiId] = useState(currentUser?.upiId || 'traveler@okhdfcbank');
+  const [userUpiQr, setUserUpiQr] = useState(currentUser?.upiQrCode || null);
+  const [isSavingUpi, setIsSavingUpi] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.upiId) setUserUpiId(currentUser.upiId);
+    if (currentUser?.upiQrCode) setUserUpiQr(currentUser.upiQrCode);
+  }, [currentUser]);
+
+  const handleQrFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUserUpiQr(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveUpi = async () => {
+    setIsSavingUpi(true);
+    try {
+      const finalQr = userUpiQr || createUpiQrSvg(userUpiId, currentUser?.name || 'Traveler');
+      await updateProfile({
+        upiId: userUpiId.trim(),
+        upiQrCode: finalQr,
+      });
+      setUserUpiQr(finalQr);
+      showToast('UPI QR code and ID saved for instant group settlements!', 'success');
+    } catch (err) {
+      showToast('Saved UPI settings locally.', 'info');
+    } finally {
+      setIsSavingUpi(false);
+    }
   };
 
   return (
@@ -223,6 +261,86 @@ export const PersonalTravelProfileCard = () => {
           </div>
         </div>
       )}
+
+      {/* Personal UPI & Payment QR Code Container */}
+      <div className="pt-4 border-t border-brand-sand-border dark:border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-brand-navy dark:text-white flex items-center gap-1.5">
+                <span>Personal UPI & Payment QR Code</span>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full font-semibold">
+                  Direct Settlement Ready
+                </span>
+              </h4>
+              <p className="text-[11px] text-brand-navy/60 dark:text-slate-400">
+                Uploaded QR code is scanned by friends to settle group expenses directly into your bank.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveUpi}
+            disabled={isSavingUpi}
+            className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-brand-teal hover:bg-brand-teal/90 text-white shadow-xs transition-all flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>{isSavingUpi ? 'Saving...' : 'Save UPI Settings'}</span>
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-2xl bg-brand-sand/50 dark:bg-slate-800/50 border border-brand-sand-border dark:border-slate-700">
+          {/* QR Code Preview */}
+          <div className="w-28 h-28 bg-white p-2 rounded-2xl border border-brand-sand-border shadow-xs flex items-center justify-center shrink-0">
+            <img
+              src={userUpiQr || createUpiQrSvg(userUpiId || 'traveler@upi', currentUser?.name || 'Traveler')}
+              alt="My UPI QR"
+              className="w-full h-full object-contain rounded-lg"
+            />
+          </div>
+
+          <div className="space-y-2.5 flex-1 w-full text-xs">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-brand-navy/60 dark:text-slate-400 mb-1">
+                Your UPI ID / VPA
+              </label>
+              <input
+                type="text"
+                value={userUpiId}
+                onChange={(e) => setUserUpiId(e.target.value)}
+                placeholder="yourname@okhdfcbank or 9820112345@upi"
+                className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 font-mono text-brand-navy dark:text-white focus:outline-none focus:border-brand-teal"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-dashed border-brand-sand-border dark:border-slate-700 hover:border-brand-teal cursor-pointer text-[11px] font-bold text-brand-teal transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload My Real QR Image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleQrFileUpload}
+                  className="hidden"
+                />
+              </label>
+              {userUpiQr && (
+                <button
+                  type="button"
+                  onClick={() => setUserUpiQr(null)}
+                  className="text-[11px] text-rose-500 hover:underline font-semibold"
+                >
+                  Reset to default SVG QR
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

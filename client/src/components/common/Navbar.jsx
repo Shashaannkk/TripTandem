@@ -21,7 +21,8 @@ import {
   Luggage,
   ShieldCheck,
   LogOut,
-  Users
+  Users,
+  LogIn
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { GoogleGeminiIcon } from '../home/GeminiAiBubble';
@@ -184,98 +185,96 @@ export const Navbar = () => {
               )}
             </div>
 
-            {/* Real User Account & Profile Menu */}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProfileMenuOpen(!isProfileMenuOpen);
-                  setIsCurrencyMenuOpen(false);
-                }}
-                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-white dark:bg-[#111C2E] border border-brand-sand-border dark:border-[#1E2D42] hover:border-brand-teal/50 transition-all shadow-subtle group shrink-0"
-                title={isAuthenticated ? `Account: ${userName}` : 'Sign In / Account'}
-              >
-                <div className="relative">
-                  <img
-                    src={userAvatar}
-                    alt={userName}
-                    className="w-6 h-6 rounded-full object-cover ring-2 ring-brand-teal"
-                  />
-                  {isAuthenticated && (
+            {/* If Logged In: Show Profile Menu & Details. If Logged Out: Show Single Log In Button (No demo ID Alex!) */}
+            {isAuthenticated && currentUser ? (
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileMenuOpen(!isProfileMenuOpen);
+                    setIsCurrencyMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-white dark:bg-[#111C2E] border border-brand-sand-border dark:border-[#1E2D42] hover:border-brand-teal/50 transition-all shadow-subtle group shrink-0"
+                  title={`Account: ${userName}`}
+                >
+                  <div className="relative">
+                    <img
+                      src={userAvatar}
+                      alt={userName}
+                      className="w-6 h-6 rounded-full object-cover ring-2 ring-brand-teal"
+                    />
                     <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white" />
-                  )}
-                </div>
-                <div className="text-left">
-                  <div className="text-xs font-semibold text-brand-navy dark:text-slate-200 leading-tight flex items-center gap-1">
-                    <span>{userFirstName}</span>
-                    <span className="hidden xl:inline text-[9px] text-brand-teal font-medium bg-brand-teal-light dark:bg-teal-950/50 px-1 rounded">
-                      {userRole}
-                    </span>
                   </div>
-                </div>
-                <ChevronDown className={`w-3 h-3 text-brand-navy/50 dark:text-slate-400 group-hover:text-brand-navy transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isProfileMenuOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111C2E] rounded-3xl shadow-floating border border-brand-sand-border dark:border-[#1E2D42] p-3 z-50 animate-fadeIn">
-                  {/* Account Header */}
-                  <div className="p-3 rounded-2xl bg-brand-sand/60 dark:bg-slate-800/60 border border-brand-sand-border/80 dark:border-slate-700/60 mb-2">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={userAvatar}
-                        alt={userName}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-brand-teal shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-brand-navy dark:text-white truncate">
-                          {userName}
-                        </div>
-                        <div className="text-[10px] text-brand-navy/60 dark:text-slate-400 truncate">
-                          {userEmail}
-                        </div>
-                        <span className="inline-block mt-1 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full">
-                          Verified Traveler
-                        </span>
-                      </div>
+                  <div className="text-left">
+                    <div className="text-xs font-semibold text-brand-navy dark:text-slate-200 leading-tight flex items-center gap-1">
+                      <span>{userFirstName}</span>
+                      <span className="hidden xl:inline text-[9px] text-brand-teal font-medium bg-brand-teal-light dark:bg-teal-950/50 px-1 rounded">
+                        {userRole}
+                      </span>
                     </div>
                   </div>
+                  <ChevronDown className={`w-3 h-3 text-brand-navy/50 dark:text-slate-400 group-hover:text-brand-navy transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-                  {/* Navigation Links */}
-                  <div className="space-y-1 py-1">
-                    <Link
-                      to="/trips"
-                      onClick={() => setIsProfileMenuOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <Luggage className="w-4 h-4 text-brand-orange" />
-                      <span>My Collaborative Trips</span>
-                    </Link>
+                {isProfileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111C2E] rounded-3xl shadow-floating border border-brand-sand-border dark:border-[#1E2D42] p-3 z-50 animate-fadeIn">
+                    {/* Account Header */}
+                    <div className="p-3 rounded-2xl bg-brand-sand/60 dark:bg-slate-800/60 border border-brand-sand-border/80 dark:border-slate-700/60 mb-2">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={userAvatar}
+                          alt={userName}
+                          className="w-10 h-10 rounded-full object-cover ring-2 ring-brand-teal shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-brand-navy dark:text-white truncate">
+                            {userName}
+                          </div>
+                          <div className="text-[10px] text-brand-navy/60 dark:text-slate-400 truncate">
+                            {userEmail}
+                          </div>
+                          <span className="inline-block mt-1 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full">
+                            Verified Traveler
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                    <Link
-                      to="/explore"
-                      onClick={() => setIsProfileMenuOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <Compass className="w-4 h-4 text-brand-teal" />
-                      <span>Explore 100+ Stays & Places</span>
-                    </Link>
+                    {/* Navigation Links */}
+                    <div className="space-y-1 py-1">
+                      <Link
+                        to="/trips"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <Luggage className="w-4 h-4 text-brand-orange" />
+                        <span>My Collaborative Trips</span>
+                      </Link>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        setIsJoinModalOpen(true);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors text-left"
-                    >
-                      <Users className="w-4 h-4 text-brand-yellow" />
-                      <span>Join Trip with Invite Code</span>
-                    </button>
-                  </div>
+                      <Link
+                        to="/explore"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <Compass className="w-4 h-4 text-brand-teal" />
+                        <span>Explore 100+ Stays & Places</span>
+                      </Link>
 
-                  {/* Sign Out or Login action */}
-                  <div className="pt-2 mt-1 border-t border-brand-sand-border dark:border-slate-800">
-                    {isAuthenticated ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          setIsJoinModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors text-left"
+                      >
+                        <Users className="w-4 h-4 text-brand-yellow" />
+                        <span>Join Trip with Invite Code</span>
+                      </button>
+                    </div>
+
+                    {/* Sign Out */}
+                    <div className="pt-2 mt-1 border-t border-brand-sand-border dark:border-slate-800">
                       <button
                         type="button"
                         onClick={() => {
@@ -287,27 +286,18 @@ export const Navbar = () => {
                         <LogOut className="w-4 h-4" />
                         <span>Sign Out of Account</span>
                       </button>
-                    ) : (
-                      <Link
-                        to="/login"
-                        onClick={() => setIsProfileMenuOpen(false)}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-brand-orange hover:bg-brand-orange-hover rounded-xl shadow-xs transition-colors"
-                      >
-                        <span>Sign In to Account</span>
-                      </Link>
-                    )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Log In Link - Cleanly removed when logged in */}
-            {!isAuthenticated && (
+                )}
+              </div>
+            ) : (
+              /* When Logged Out: Show Single Clean Log In Button (No demo ID Alex!) */
               <Link
                 to="/login"
-                className="px-2.5 xl:px-3 py-1.5 text-xs xl:text-sm font-semibold text-brand-navy/80 dark:text-slate-300 hover:text-brand-navy dark:hover:text-white hover:bg-brand-sand/70 dark:hover:bg-slate-800 rounded-full transition-all shrink-0 whitespace-nowrap"
+                className="px-4 py-2 text-xs xl:text-sm font-bold text-brand-navy dark:text-slate-100 bg-white dark:bg-[#111C2E] border border-brand-sand-border dark:border-[#1E2D42] hover:border-brand-teal hover:text-brand-teal rounded-full shadow-subtle transition-all shrink-0 whitespace-nowrap flex items-center gap-1.5"
               >
-                Log In
+                <LogIn className="w-3.5 h-3.5 text-brand-teal" />
+                <span>Log In</span>
               </Link>
             )}
 
@@ -463,27 +453,59 @@ export const Navbar = () => {
               </div>
             </div>
 
-            {/* Real User Profile Summary for Mobile */}
-            <div className="pt-3 border-t border-brand-sand-border dark:border-slate-800">
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-brand-sand/50 dark:bg-slate-800/50 border border-brand-sand-border dark:border-slate-700">
-                <img
-                  src={userAvatar}
-                  alt={userName}
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-brand-teal"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-brand-navy dark:text-white truncate">
-                    {userName}
+            {/* If Authenticated: show User Profile Summary and Sign Out */}
+            {isAuthenticated && currentUser ? (
+              <div className="pt-3 border-t border-brand-sand-border dark:border-slate-800 space-y-2">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-brand-sand/50 dark:bg-slate-800/50 border border-brand-sand-border dark:border-slate-700">
+                  <img
+                    src={userAvatar}
+                    alt={userName}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-brand-teal"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-brand-navy dark:text-white truncate">
+                      {userName}
+                    </div>
+                    <div className="text-[11px] text-brand-navy/60 dark:text-slate-400 truncate">
+                      {userEmail}
+                    </div>
+                    <div className="text-[10px] font-medium text-brand-teal mt-0.5">
+                      {userRole}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-brand-navy/60 dark:text-slate-400 truncate">
-                    {userEmail}
-                  </div>
-                  <div className="text-[10px] font-medium text-brand-teal mt-0.5">
-                    {userRole}
-                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="p-2 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-xl hover:bg-rose-100 flex items-center gap-1"
+                    title="Sign Out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* If Logged Out: Clean prominent Log In & Sign Up buttons */
+              <div className="pt-3 border-t border-brand-sand-border dark:border-slate-800 space-y-2">
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-brand-orange hover:bg-brand-orange-hover transition-colors shadow-sm"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Log In to Account</span>
+                </Link>
+                <Link
+                  to="/signup"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold text-brand-navy dark:text-slate-200 bg-brand-sand dark:bg-slate-800 hover:bg-brand-sand/80 transition-colors"
+                >
+                  <span>Create Free Account</span>
+                </Link>
+              </div>
+            )}
 
             {/* Join Group Trip Shortcut for Mobile */}
             <div className="pt-2">
@@ -499,35 +521,6 @@ export const Navbar = () => {
                 <span>Join Group Trip with Invite Code 🎟️</span>
               </button>
             </div>
-
-            {/* Auth Links */}
-            <div className="pt-3 border-t border-brand-sand-border dark:border-slate-800 flex items-center justify-between">
-              {!isAuthenticated ? (
-                <>
-                  <Link
-                    to="/login"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-xs font-bold text-brand-navy dark:text-white hover:text-brand-orange"
-                  >
-                    Log In to Account
-                  </Link>
-                  <Link
-                    to="/signup"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-xs font-bold text-brand-teal hover:text-brand-teal-hover"
-                  >
-                    Sign Up Free →
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs text-brand-navy/70 dark:text-slate-400">
-                    Signed in as <strong className="text-brand-navy dark:text-white">{userName}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      logout();
                       setIsMobileMenuOpen(false);
                     }}
                     className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"

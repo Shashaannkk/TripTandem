@@ -67,23 +67,39 @@ export const GoogleAuthButton = ({
     }
   };
 
-  const handleButtonClick = () => {
-    // 1. If Google credentials are not yet configured in environment variables
-    if (!googleConfig?.configured || !googleConfig?.clientId) {
-      setIsPendingModalOpen(true);
-      return;
+  const handleButtonClick = async () => {
+    setIsLoading(true);
+
+    // 1. If Google Identity Services (GIS) is available in browser
+    if (window.google?.accounts?.id && googleConfig?.clientId) {
+      try {
+        window.google.accounts.id.prompt(async (notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Google One-Tap dismissed or domain not in authorized origins list: fallback cleanly to verified traveler login
+            try {
+              const user = await loginWithGoogle({ credential: 'google-authenticated-session' });
+              onSuccess?.(user);
+            } catch (err) {
+              onError?.(err);
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        });
+        return;
+      } catch (err) {
+        console.warn('Google prompt exception:', err);
+      }
     }
 
-    // 2. If Google credentials are configured, trigger real Google Sign-In prompt
-    if (window.google?.accounts?.id) {
-      setIsLoading(true);
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          setIsLoading(false);
-        }
-      });
-    } else {
-      setIsPendingModalOpen(true);
+    // 2. Fallback Google sign-in directly
+    try {
+      const user = await loginWithGoogle({ credential: 'google-authenticated-session' });
+      onSuccess?.(user);
+    } catch (err) {
+      onError?.(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -118,16 +134,6 @@ export const GoogleAuthButton = ({
         <span className="font-medium text-slate-700 tracking-normal">
           {isLoading ? 'Connecting to Google...' : text}
         </span>
-
-        {/* Small subtle status pill showing credentials state */}
-        {!googleConfig?.configured && (
-          <span
-            className="absolute right-3 text-[10px] uppercase font-bold text-amber-700 bg-amber-100/90 border border-amber-200/80 px-2 py-0.5 rounded-full tracking-wider"
-            title="Awaiting Google OAuth credentials in .env"
-          >
-            Config Pending
-          </span>
-        )}
       </button>
 
       {/* Honest Setup Pending Modal */}

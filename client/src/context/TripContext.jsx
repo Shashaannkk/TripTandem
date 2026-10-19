@@ -789,8 +789,8 @@ export const TripProvider = ({ children }) => {
     setTrip(prev => ({ ...prev, isRoomLocked: isLocked }));
   };
 
-  // Settle up direct payment between two members
-  const settleDebt = (fromName, toName, amount) => {
+  // Settle up direct payment between two members with payment proof upload support
+  const settleDebt = (fromName, toName, amount, metadata = {}) => {
     addExpense({
       title: `Debt Settlement: ${fromName} paid ${toName}`,
       amount: Number(amount),
@@ -798,7 +798,10 @@ export const TripProvider = ({ children }) => {
       paidBy: fromName,
       splitWith: [toName],
       type: 'settlement',
-      notes: `Settled direct balance between ${fromName} and ${toName}`,
+      notes: metadata.notes || (metadata.transactionId ? `Settled via UPI Ref #${metadata.transactionId}` : `Settled direct balance between ${fromName} and ${toName}`),
+      receiptUrl: metadata.receiptUrl || metadata.paymentProof || null,
+      paymentProof: metadata.paymentProof || metadata.receiptUrl || null,
+      transactionId: metadata.transactionId || null,
     });
     showToast(`Marked ₹${amount.toLocaleString()} settled between ${fromName} and ${toName}!`, 'success');
   };

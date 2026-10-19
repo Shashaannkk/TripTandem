@@ -39,6 +39,8 @@ export const BudgetDashboard = () => {
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [activeReceiptModal, setActiveReceiptModal] = useState(null);
   const [isCopiedUpi, setIsCopiedUpi] = useState(false);
+  const [paymentProofImage, setPaymentProofImage] = useState(null);
+  const [paymentTxnId, setPaymentTxnId] = useState('');
 
   // New Expense Form State
   const [expenseTitle, setExpenseTitle] = useState('');
@@ -85,6 +87,17 @@ export const BudgetDashboard = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setExpenseReceipt(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePaymentProofUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPaymentProofImage(reader.result);
       };
       reader.readAsDataURL(file);
     }
@@ -363,6 +376,8 @@ export const BudgetDashboard = () => {
                       type="button"
                       onClick={() => {
                         setSelectedSettlement(stl);
+                        setPaymentProofImage(null);
+                        setPaymentTxnId('');
                         setIsUpiModalOpen(true);
                       }}
                       className="px-3 py-1.5 rounded-xl bg-brand-sand hover:bg-brand-orange/10 hover:text-brand-orange text-brand-navy text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
@@ -462,53 +477,66 @@ export const BudgetDashboard = () => {
           </div>
 
           <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-            {(trip.budget.expenses || []).map((exp) => (
-              <div
-                key={exp.id}
-                className="flex items-center justify-between p-3 rounded-2xl bg-brand-sand/30 border border-brand-sand-border text-xs"
-              >
-                <div className="flex items-center gap-3">
-                  {exp.receiptUrl ? (
-                    <div
-                      onClick={() => setActiveReceiptModal(exp.receiptUrl)}
-                      className="w-10 h-10 rounded-xl overflow-hidden border border-brand-sand-border relative cursor-pointer group shrink-0"
-                    >
-                      <img src={exp.receiptUrl} alt="Bill" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white">
-                        <Maximize2 className="w-3 h-3" />
+            {(trip.budget.expenses || []).map((exp) => {
+              const proof = exp.receiptUrl || exp.paymentProof;
+              return (
+                <div
+                  key={exp.id}
+                  className="flex items-center justify-between p-3 rounded-2xl bg-brand-sand/30 border border-brand-sand-border text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    {proof ? (
+                      <div
+                        onClick={() => setActiveReceiptModal(proof)}
+                        className="w-10 h-10 rounded-xl overflow-hidden border border-brand-sand-border relative cursor-pointer group shrink-0"
+                        title="Click to view receipt or payment proof"
+                      >
+                        <img src={proof} alt="Bill or Proof" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white">
+                          <Maximize2 className="w-3 h-3" />
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl bg-brand-sand border border-brand-sand-border flex items-center justify-center text-brand-navy/60 shrink-0">
-                      {categoryIcons[exp.category] || <Receipt className="w-4 h-4" />}
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="font-semibold text-brand-navy">{exp.title}</div>
-                    <div className="text-[11px] text-brand-navy/60">
-                      Paid by <strong className="text-brand-teal">{exp.paidBy}</strong> · {exp.date}
-                    </div>
-                    {exp.receiptUrl && (
-                      <span className="text-[10px] text-brand-orange font-semibold">
-                        🧾 Bill attached
-                      </span>
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-brand-sand border border-brand-sand-border flex items-center justify-center text-brand-navy/60 shrink-0">
+                        {categoryIcons[exp.category] || <Receipt className="w-4 h-4" />}
+                      </div>
                     )}
+
+                    <div>
+                      <div className="font-semibold text-brand-navy">{exp.title}</div>
+                      <div className="text-[11px] text-brand-navy/60">
+                        Paid by <strong className="text-brand-teal">{exp.paidBy}</strong> · {exp.date}
+                        {exp.transactionId && (
+                          <span className="ml-1 text-[10px] font-mono font-medium text-brand-teal">
+                            (Ref: {exp.transactionId})
+                          </span>
+                        )}
+                      </div>
+                      {proof && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveReceiptModal(proof)}
+                          className="text-[10px] text-brand-orange hover:underline font-semibold flex items-center gap-1 mt-0.5 text-left"
+                        >
+                          <span>🧾 {exp.type === 'settlement' ? 'View Payment Proof' : 'Bill attached'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="font-bold text-brand-navy">{formatPrice(exp.amount)}</div>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full capitalize font-medium ${
+                      exp.type === 'verified' || exp.type === 'settlement' 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {exp.type}
+                    </span>
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <div className="font-bold text-brand-navy">{formatPrice(exp.amount)}</div>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full capitalize font-medium ${
-                    exp.type === 'verified' || exp.type === 'settlement' 
-                      ? 'bg-emerald-50 text-emerald-700' 
-                      : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {exp.type}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -712,6 +740,7 @@ export const BudgetDashboard = () => {
                          (availableUsers || []).find(u => u.name === selectedSettlement.to);
         const creditorQr = creditor?.upiQrCode || createUpiQrSvg(creditor?.upiId || selectedSettlement.upi, selectedSettlement.to);
         const creditorUpi = creditor?.upiId || selectedSettlement.upi;
+        const upiDeepLink = `upi://pay?pa=${encodeURIComponent(creditorUpi)}&pn=${encodeURIComponent(selectedSettlement.to)}&am=${selectedSettlement.amount}&cu=INR&tn=${encodeURIComponent(`TripTandem-${trip?.title || 'Trip'}`)}`;
 
         return (
           <div 
@@ -720,7 +749,7 @@ export const BudgetDashboard = () => {
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-floating border border-brand-sand-border dark:border-slate-800 space-y-4 text-center text-brand-navy dark:text-slate-100"
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-floating border border-brand-sand-border dark:border-slate-800 space-y-4 text-center text-brand-navy dark:text-slate-100 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between pb-2 border-b border-brand-sand-border dark:border-slate-800">
                 <span className="font-bold text-xs flex items-center gap-1.5 text-brand-teal">
@@ -791,15 +820,83 @@ export const BudgetDashboard = () => {
                 </button>
               </div>
 
+              {/* UPI Deep-link App Opener */}
+              <a
+                href={upiDeepLink}
+                className="inline-flex items-center justify-center gap-1.5 w-full py-2 px-3 rounded-xl bg-brand-orange/10 hover:bg-brand-orange/20 text-brand-orange text-xs font-semibold border border-brand-orange/30 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Pay via UPI App (GPay / PhonePe)</span>
+              </a>
+
+              {/* Payment Proof / Screenshot Upload */}
+              <div className="text-left space-y-2 p-3 rounded-2xl bg-brand-sand/40 dark:bg-slate-800/60 border border-brand-sand-border dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-brand-navy dark:text-slate-200 flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5 text-brand-teal" />
+                    <span>Attach Payment Proof / Screenshot</span>
+                  </label>
+                  <span className="text-[10px] text-brand-teal font-medium">Auto-verify</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    id="upi-payment-proof"
+                    accept="image/*"
+                    onChange={handlePaymentProofUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="upi-payment-proof"
+                    className="cursor-pointer px-3 py-1.5 rounded-xl border border-dashed border-brand-teal text-brand-teal bg-brand-teal/5 hover:bg-brand-teal/10 font-semibold text-[11px] flex items-center gap-1.5 transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{paymentProofImage ? 'Proof Selected ✓' : 'Upload Screenshot'}</span>
+                  </label>
+                  {paymentProofImage && (
+                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Ready
+                    </span>
+                  )}
+                </div>
+
+                {paymentProofImage && (
+                  <div className="relative mt-2 w-28 h-20 rounded-xl overflow-hidden border border-brand-sand-border shadow-sm group">
+                    <img src={paymentProofImage} alt="Payment Proof" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPaymentProofImage(null)}
+                      className="absolute top-1 right-1 p-0.5 bg-black/60 hover:bg-black/80 rounded-full text-white"
+                      title="Remove Proof"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  value={paymentTxnId}
+                  onChange={(e) => setPaymentTxnId(e.target.value)}
+                  placeholder="Optional: UPI Ref / UTR No. (e.g. 402918239012)"
+                  className="w-full text-xs rounded-xl p-2 bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-brand-navy dark:text-slate-100 placeholder:text-brand-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:border-brand-teal"
+                />
+              </div>
+
               <button
                 onClick={() => {
-                  settleDebt(selectedSettlement.from, selectedSettlement.to, selectedSettlement.amount);
+                  settleDebt(selectedSettlement.from, selectedSettlement.to, selectedSettlement.amount, {
+                    receiptUrl: paymentProofImage,
+                    paymentProof: paymentProofImage,
+                    transactionId: paymentTxnId.trim() || undefined,
+                  });
                   setIsUpiModalOpen(false);
                 }}
                 className="w-full py-2.5 rounded-full font-bold text-xs bg-brand-teal hover:bg-brand-teal/90 text-white shadow-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
               >
                 <Check className="w-4 h-4" />
-                <span>Mark Payment Completed</span>
+                <span>Mark Payment Completed {paymentProofImage ? '(with Proof)' : ''}</span>
               </button>
             </div>
           </div>
