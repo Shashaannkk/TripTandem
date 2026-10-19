@@ -404,8 +404,7 @@ export const AiConciergePage = () => {
                         })}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Structured Suggestion Cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
