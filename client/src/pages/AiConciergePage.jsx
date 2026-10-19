@@ -1,6 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Send, MapPin, Clock, Coins, Check, ArrowRight, ShieldCheck, Info, Trash2, Bot, Calendar, Users, Wallet } from 'lucide-react';
+import { 
+  Sparkles, 
+  Send, 
+  MapPin, 
+  Clock, 
+  Coins, 
+  Check, 
+  ArrowRight, 
+  ShieldCheck, 
+  Info, 
+  Trash2, 
+  Bot, 
+  Calendar, 
+  Users, 
+  Wallet,
+  Key,
+  ExternalLink,
+  Car,
+  Bus,
+  Bed,
+  Utensils,
+  CheckCircle2,
+  X
+} from 'lucide-react';
 import { useTrip } from '../context/TripContext';
 import { useAuth } from '../context/AuthContext';
 import { useAiChat } from '../services/aiChatService';
@@ -10,9 +33,15 @@ export const AiConciergePage = () => {
   const navigate = useNavigate();
   const { trip, setTrip, acceptAiSuggestion } = useTrip();
   const { formatPrice, currentUser, showToast } = useAuth();
-  const { messages, isLoading, sendMessage, clearHistory } = useAiChat(trip?.id);
+  const { messages, isLoading, sendMessage, clearHistory, openRouterKey, setOpenRouterKey } = useAiChat(trip?.id);
 
   const [inputQuery, setInputQuery] = useState('');
+  const [isOpenRouterModalOpen, setIsOpenRouterModalOpen] = useState(false);
+  const [keyInput, setKeyInput] = useState(openRouterKey || '');
+
+  useEffect(() => {
+    if (openRouterKey) setKeyInput(openRouterKey);
+  }, [openRouterKey]);
 
   const benchmarkPrompts = [
     { title: 'Budget Plan', text: 'Plan a three-day Goa trip for four friends under ₹20,000 total.' },
@@ -155,8 +184,21 @@ export const AiConciergePage = () => {
 
           <div className="flex items-center justify-center gap-2 pt-1">
             <button
+              onClick={() => setIsOpenRouterModalOpen(true)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border shadow-xs transition-colors cursor-pointer ${
+                openRouterKey
+                  ? 'bg-teal-50 dark:bg-teal-950/60 text-brand-teal border-teal-500/30'
+                  : 'text-brand-navy/70 dark:text-slate-200 hover:text-brand-orange bg-white dark:bg-slate-800 border-brand-sand-border dark:border-slate-700'
+              }`}
+              title={openRouterKey ? 'OpenRouter Active (Custom Model)' : 'Connect OpenRouter API Key'}
+            >
+              <Key className="w-3.5 h-3.5 text-brand-teal" />
+              <span>{openRouterKey ? 'OpenRouter Active' : 'Connect OpenRouter AI'}</span>
+            </button>
+
+            <button
               onClick={clearHistory}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-brand-navy/60 hover:text-rose-600 bg-white dark:bg-slate-800 border border-brand-sand-border dark:border-slate-700 shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-brand-navy/60 hover:text-rose-600 bg-white dark:bg-slate-800 border border-brand-sand-border dark:border-slate-700 shadow-xs transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Reset Chat History</span>
@@ -208,6 +250,162 @@ export const AiConciergePage = () => {
                     <p className="whitespace-pre-wrap">{msg.text}</p>
                   </div>
                 </div>
+
+                {/* Matched Real Venues & Properties on TripTandem with Direct Actions & Uber/Bus Transit */}
+                {msg.matchedVenues && msg.matchedVenues.length > 0 && (
+                  <div className="space-y-4 pt-3 border-t border-brand-sand-border dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold text-brand-teal dark:text-brand-teal uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-brand-orange" />
+                        <span>Listed on TripTandem ({msg.matchedVenues.length}) · Direct Booking & Live Transit</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {msg.matchedVenues.map((venue) => {
+                        const isStay = venue.category === 'stay';
+                        const isFood = venue.category === 'dining' || venue.category === 'food';
+                        const actionLabel = isStay ? 'Book Stay Directly' : (isFood ? 'Dine / Eat Here' : 'Visit Spot & View Guide');
+                        const ActionIcon = isStay ? Bed : (isFood ? Utensils : MapPin);
+
+                        return (
+                          <div
+                            key={venue.id}
+                            className="rounded-3xl overflow-hidden bg-brand-sand/70 dark:bg-slate-800/90 border border-brand-sand-border dark:border-slate-700 shadow-sm text-brand-navy dark:text-slate-100 flex flex-col justify-between"
+                          >
+                            <div>
+                              {/* Venue Card Header with Real Photo */}
+                              <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+                                <img
+                                  src={venue.image}
+                                  alt={venue.name}
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+
+                                <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 text-brand-navy uppercase tracking-wider shadow-sm">
+                                    {venue.category}
+                                  </span>
+                                  <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-white shadow-sm flex items-center gap-1">
+                                    ⭐ {venue.rating || 4.8} ({venue.reviewCount || 120})
+                                  </span>
+                                </div>
+
+                                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                                  <div className="min-w-0 pr-2">
+                                    <h4 className="font-bold text-sm sm:text-base text-white leading-tight drop-shadow-sm">
+                                      {venue.name}
+                                    </h4>
+                                    <p className="text-xs text-slate-200 truncate flex items-center gap-1 mt-0.5">
+                                      <MapPin className="w-3 h-3 text-brand-orange" />
+                                      <span>{venue.region || venue.destination}</span>
+                                    </p>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className="text-sm font-bold text-emerald-300 bg-black/60 px-2 py-1 rounded-lg backdrop-blur-xs block">
+                                      {formatPrice(venue.price)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="p-3.5 space-y-3">
+                                <p className="text-xs text-brand-navy/70 dark:text-slate-300 line-clamp-2">
+                                  {venue.description}
+                                </p>
+
+                                {/* Direct Action Button + Google Maps Link */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => navigate(`/explore?search=${encodeURIComponent(venue.name)}`)}
+                                    className="py-2 px-3 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                                  >
+                                    <ActionIcon className="w-3.5 h-3.5" />
+                                    <span>{actionLabel}</span>
+                                  </button>
+
+                                  <a
+                                    href={venue.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name + ' ' + venue.destination)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="py-2 px-3 rounded-xl bg-white dark:bg-slate-700 hover:bg-brand-sand dark:hover:bg-slate-600 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 text-brand-teal" />
+                                    <span>Google Maps</span>
+                                  </a>
+                                </div>
+
+                                {/* Real-Time Transit & Live Fare Breakdown */}
+                                {venue.transit && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                                    {/* Uber Live Estimates */}
+                                    <div className="p-2.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold flex items-center gap-1.5 text-xs text-amber-400">
+                                          <Car className="w-3.5 h-3.5" />
+                                          <span>Uber Live Rates</span>
+                                        </span>
+                                        <span className="text-[10px] text-slate-300">~{venue.transit.distanceKm} km</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-1 text-[10px] bg-slate-800/80 p-1.5 rounded-lg text-center">
+                                        <div>
+                                          <span className="text-slate-400 block text-[9px]">Auto</span>
+                                          <strong className="text-amber-300">₹{venue.transit.uber.autoFare}</strong>
+                                        </div>
+                                        <div>
+                                          <span className="text-slate-400 block text-[9px]">Go</span>
+                                          <strong className="text-white">₹{venue.transit.uber.goFare}</strong>
+                                        </div>
+                                        <div>
+                                          <span className="text-slate-400 block text-[9px]">Premier</span>
+                                          <strong className="text-white">₹{venue.transit.uber.premierFare}</strong>
+                                        </div>
+                                      </div>
+                                      <a
+                                        href={venue.transit.uber.deepLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block text-center py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] transition-colors"
+                                      >
+                                        Open in Uber App ↗
+                                      </a>
+                                    </div>
+
+                                    {/* Bus Transit Breakdown */}
+                                    <div className="p-2.5 rounded-2xl bg-emerald-950/80 text-emerald-100 border border-emerald-500/20 space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold flex items-center gap-1.5 text-xs text-emerald-300">
+                                          <Bus className="w-3.5 h-3.5" />
+                                          <span>Bus & Public Transit</span>
+                                        </span>
+                                        <span className="text-[10px] font-bold text-white bg-emerald-800 px-1.5 py-0.5 rounded">
+                                          {venue.transit.bus.fare}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-emerald-200">
+                                        <p className="font-semibold truncate">{venue.transit.bus.line}</p>
+                                        <p className="text-[10px] text-emerald-300/80">{venue.transit.bus.frequency} · from {venue.transit.bus.departurePoint}</p>
+                                      </div>
+                                      <a
+                                        href={venue.transit.bus.directionsLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block text-center py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors"
+                                      >
+                                        Bus Routes & Timings ↗
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Structured Suggestion Cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
@@ -314,6 +512,108 @@ export const AiConciergePage = () => {
             <Send className="w-4 h-4" />
           </button>
         </form>
+
+        {/* OpenRouter API Key Settings Modal */}
+        {isOpenRouterModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white dark:bg-[#0E1A2E] rounded-3xl p-6 border border-brand-sand-border dark:border-slate-800 shadow-2xl space-y-4 animate-fadeIn text-left">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-brand-teal-light dark:bg-teal-950/60 text-brand-teal">
+                    <Key className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-brand-navy dark:text-white">
+                      OpenRouter AI Integration
+                    </h3>
+                    <p className="text-xs text-brand-navy/60 dark:text-slate-400">
+                      Connect Gemini 2.0 Flash, Llama 3.3, or Claude
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsOpenRouterModalOpen(false)}
+                  className="p-1 rounded-full text-brand-navy/40 hover:text-brand-navy dark:text-slate-400 dark:hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs text-brand-navy/70 dark:text-slate-300">
+                <p>
+                  Enter your <strong>OpenRouter API Key</strong> to ask completely open-ended travel questions, general knowledge, custom itineraries, and budget calculations.
+                </p>
+                <p className="text-[11px] text-brand-navy/50 dark:text-slate-400">
+                  TripTandem automatically grounds all responses with direct booking links, live Uber pricing, and bus transit schedules.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-brand-navy dark:text-slate-200">
+                  OpenRouter API Key
+                </label>
+                <input
+                  type="password"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-brand-sand dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-xs font-mono text-brand-navy dark:text-white focus:outline-none focus:border-brand-teal"
+                />
+                <div className="flex items-center justify-between text-[11px] pt-1">
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-teal hover:underline flex items-center gap-1"
+                  >
+                    <span>Get an OpenRouter Key</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  {openRouterKey && (
+                    <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Key connected
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-sand-border dark:border-slate-800">
+                {openRouterKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenRouterKey('');
+                      setKeyInput('');
+                      showToast('OpenRouter API key cleared. Using built-in travel engine.', 'info');
+                      setIsOpenRouterModalOpen(false);
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    Remove Key
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOpenRouterModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-brand-navy/70 dark:text-slate-300 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenRouterKey(keyInput.trim());
+                    showToast(keyInput.trim() ? 'OpenRouter API key saved!' : 'Switched to built-in travel engine', 'success');
+                    setIsOpenRouterModalOpen(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-teal hover:bg-teal-700 text-white shadow-sm transition-colors cursor-pointer"
+                >
+                  Save & Activate
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

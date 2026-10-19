@@ -2846,11 +2846,12 @@ export const PLACES_CATALOG = [
     distance: 'Directly on Malpe Beach sands (0m to ocean)',
     lat: 13.3512,
     lng: 74.6988,
-    coverImage: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.3512,74.6988',
+    coverImage: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Pure Veg & Coastal Seafood Options', 'Authentic Udupi Sambar & Dosas', 'Jain Meal Requests'],
     amenities: ['Direct Oceanfront Access', 'Outdoor Swimming Pool', 'Ayurvedic Wellness Spa', 'St. Mary’s Ferry Desk', 'Beach Discotheque'],
@@ -2875,10 +2876,12 @@ export const PLACES_CATALOG = [
     distance: '50m from Arabian Sea waves',
     lat: 13.3598,
     lng: 74.6995,
-    coverImage: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.3598,74.6995',
+    coverImage: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Breakfast Included', 'Private Chef available', 'Locally Sourced Coastal Cuisine'],
     amenities: ['Private Beach Gate', 'Lush Coconut Palm Lawn', 'Air Conditioning', 'Sunset Deck', 'High Speed Wi-Fi'],
@@ -2903,10 +2906,12 @@ export const PLACES_CATALOG = [
     distance: 'Right on Kaup Beach, 400m from British Lighthouse',
     lat: 13.2235,
     lng: 74.7392,
-    coverImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.2235,74.7392',
+    coverImage: 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Traditional Mangalorean Ghee Roast', 'Coastal Vegetarian Curries', 'Fresh Coconut Water'],
     amenities: ['Oceanfront Cottages', 'Lighthouse View Dining', 'Campfire on Sands', 'Direct Sand Access'],
@@ -2931,10 +2936,12 @@ export const PLACES_CATALOG = [
     distance: 'Flanked by Suvarna River and Arabian Sea (Delta Point)',
     lat: 13.4195,
     lng: 74.6934,
-    coverImage: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.4195,74.6934',
+    coverImage: 'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Authentic Kannada & Tulu Home-Cooked Meals', 'Fresh Neer Dosa & Fish Curry', 'Pure Veg Specials'],
     amenities: ['Surfing Lessons Desk', 'Kayaking in Backwaters', 'Sunset Hammocks', 'Pet Friendly'],
@@ -2959,10 +2966,12 @@ export const PLACES_CATALOG = [
     distance: 'Right on Maravanthe Beach sands',
     lat: 13.7022,
     lng: 74.6465,
-    coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.7022,74.6465',
+    coverImage: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Organic Coastal Veg Thali', 'Snorkelers Healthy Breakfast', 'South Indian Filter Coffee'],
     amenities: ['Scuba & Snorkeling Equipment', 'Direct Beachfront Access', 'Sea Turtle Conservation Trail', 'Yoga Pavillion'],
@@ -2987,9 +2996,12 @@ export const PLACES_CATALOG = [
     distance: 'Directly on certified Blue Flag Beach',
     lat: 13.1388,
     lng: 74.7678,
-    coverImage: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.1388,74.7678',
+    coverImage: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Clean Organic Coastal Food', 'Vegan Bowls', 'Udupi Brahmin Breakfast'],
     amenities: ['Pristine Blue-Flag Certified Beach', 'Kids Play Zone', 'Beach Volleyball Court', 'Private Cabanas'],
@@ -3014,10 +3026,12 @@ export const PLACES_CATALOG = [
     distance: 'Right on Panambur Beachfront Promenade',
     lat: 12.9482,
     lng: 74.8058,
-    coverImage: 'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=12.9482,74.8058',
+    coverImage: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1538332576228-eb5b4c4de6f5?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Legendary Mangalorean Seafood & Veg', 'Kori Rotti & Anjal Tawa Fry', 'Multi-cuisine Restaurant'],
     amenities: ['Direct Sands Access', 'Jet Ski & Camel Ride Counter', 'Sea-facing Conference Hall', 'Outdoor Pool'],
@@ -3042,10 +3056,12 @@ export const PLACES_CATALOG = [
     distance: 'Nestled between Pine Tree Park and Beach sands',
     lat: 12.8988,
     lng: 74.8192,
-    coverImage: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=12.8988,74.8192',
+    coverImage: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1448375240586-882707db888b?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1473186578172-c141e6798cf4?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Coastal South Indian Breakfast', 'Fresh Coconut Water & Sea Snacks', 'Veg Meals'],
     amenities: ['Pine Forest Trail', 'Beachfront Hammocks', 'Ferry Crossing to Sultan Battery', 'Campfire Area'],
@@ -3070,9 +3086,11 @@ export const PLACES_CATALOG = [
     distance: 'Perched overlooking the Rudra Shila rock sands',
     lat: 12.7981,
     lng: 74.8584,
-    coverImage: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=12.7981,74.8584',
+    coverImage: 'https://images.unsplash.com/photo-1518457607834-6e8d80c183c5?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1518457607834-6e8d80c183c5?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
       'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Sattvic & Vegetarian Delicacies', 'Authentic Coastal Flavors', 'Fresh Fruit Juices'],
@@ -3098,8 +3116,11 @@ export const PLACES_CATALOG = [
     distance: 'Right on Surathkal Beach cove below the Lighthouse',
     lat: 13.0068,
     lng: 74.7892,
-    coverImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.0068,74.7892',
+    coverImage: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=900&auto=format&fit=crop&q=80',
     images: [
+      'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1509233725247-49e657c54213?w=900&auto=format&fit=crop&q=80',
       'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['Traditional Mangalorean Breakfast', 'Vegetarian Specialties', 'Coastal Fish Curry Rice'],
@@ -3125,10 +3146,12 @@ export const PLACES_CATALOG = [
     distance: 'Directly on Indian Open of Surfing sands',
     lat: 13.0789,
     lng: 74.7812,
-    coverImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
+    googleMapsLink: 'https://www.google.com/maps/search/?api=1&query=13.0789,74.7812',
+    coverImage: 'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=900&auto=format&fit=crop&q=80',
     images: [
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
-      'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=900&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=900&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=900&auto=format&fit=crop&q=80'
     ],
     dietary: ['High-protein Surfer Meals', 'Mangalorean Neer Dosa', 'Fresh Coconut Smoothies'],
     amenities: ['Surfboard Rentals & Instructors', 'Luxury Ocean Glamping Tents', 'Nandini River Cruise', 'Stargazing Decks'],

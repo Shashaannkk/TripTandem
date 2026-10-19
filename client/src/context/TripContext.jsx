@@ -55,6 +55,28 @@ export const TripProvider = ({ children }) => {
     };
   }, []);
 
+  // Reflect logged-in user (Google account name, avatar, email) across trip members and expense splits
+  useEffect(() => {
+    if (!currentUser) return;
+    setTrip((prev) => {
+      if (!prev || !prev.members) return prev;
+      const index = prev.members.findIndex(
+        (m) => m.id === currentUser.id || m.email?.toLowerCase() === currentUser.email?.toLowerCase()
+      );
+      if (index >= 0) {
+        const updated = [...prev.members];
+        updated[index] = { ...updated[index], ...currentUser };
+        return { ...prev, members: updated };
+      } else {
+        const otherMembers = prev.members.filter((m) => m.id !== 'user-alex');
+        return {
+          ...prev,
+          members: [{ ...currentUser, role: 'Owner' }, ...otherMembers],
+        };
+      }
+    });
+  }, [currentUser]);
+
   // Sync Trip Room on Socket
   useEffect(() => {
     if (!socket || !trip?.id || !currentUser) return;
