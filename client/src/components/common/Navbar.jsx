@@ -521,15 +521,6 @@ export const Navbar = () => {
                 <span>Join Group Trip with Invite Code 🎟️</span>
               </button>
             </div>
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
-                  >
-                    Sign Out
-                  </button>
-                </>
-              )}
-            </div>
 
           </div>
         )}
