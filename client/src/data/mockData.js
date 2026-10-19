@@ -101,6 +101,63 @@ export const CATEGORIES = [
   { id: 'budget', name: 'Budget-Friendly', icon: 'Coins', count: 11 },
 ];
 
+export const FEATURED_DESTINATIONS = [
+  {
+    id: 'dest-goa',
+    name: 'Goa',
+    country: 'India',
+    region: 'Coastal West',
+    image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 15,
+  },
+  {
+    id: 'dest-manali',
+    name: 'Manali',
+    country: 'India',
+    region: 'Himachal Pradesh',
+    image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 12,
+  },
+  {
+    id: 'dest-jaipur',
+    name: 'Jaipur',
+    country: 'India',
+    region: 'Rajasthan',
+    image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80',
+    trending: false,
+    venuesCount: 14,
+  },
+  {
+    id: 'dest-kerala',
+    name: 'Kerala',
+    country: 'India',
+    region: 'South Coast',
+    image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 14,
+  },
+  {
+    id: 'dest-varanasi',
+    name: 'Varanasi',
+    country: 'India',
+    region: 'Uttar Pradesh',
+    image: 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?w=800&auto=format&fit=crop&q=80',
+    trending: false,
+    venuesCount: 10,
+  },
+  {
+    id: 'dest-ladakh',
+    name: 'Leh Ladakh',
+    country: 'India',
+    region: 'Himalayas',
+    image: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=800&auto=format&fit=crop&q=80',
+    trending: true,
+    venuesCount: 11,
+  },
+];
+
 export const VENUES = PLACES_CATALOG;
 
 export const INITIAL_TRIP = {
