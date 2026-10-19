@@ -29,6 +29,145 @@ import { useAuth } from '../context/AuthContext';
 import { useAiChat } from '../services/aiChatService';
 import confetti from 'canvas-confetti';
 
+const MatchedVenueCard = ({ venue, navigate, formatPrice }) => {
+  const isStay = venue.category === 'stay';
+  const isFood = venue.category === 'dining' || venue.category === 'food';
+  const actionLabel = isStay ? 'Book Stay Directly' : (isFood ? 'Dine / Eat Here' : 'Visit Spot & View Guide');
+  const ActionIcon = isStay ? Bed : (isFood ? Utensils : MapPin);
+
+  return (
+    <div className="rounded-3xl overflow-hidden bg-brand-sand/70 dark:bg-slate-800/90 border border-brand-sand-border dark:border-slate-700 shadow-sm text-brand-navy dark:text-slate-100 flex flex-col justify-between">
+      <div>
+        {/* Venue Card Header with Real Photo */}
+        <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+          <img
+            src={venue.image}
+            alt={venue.name}
+            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+
+          <div className="absolute top-3 left-3 flex items-center gap-1.5">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 text-brand-navy uppercase tracking-wider shadow-sm">
+              {venue.category}
+            </span>
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-white shadow-sm flex items-center gap-1">
+              ⭐ {venue.rating || 4.8} ({venue.reviewCount || 120})
+            </span>
+          </div>
+
+          <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+            <div className="min-w-0 pr-2">
+              <h4 className="font-bold text-sm sm:text-base text-white leading-tight drop-shadow-sm">
+                {venue.name}
+              </h4>
+              <p className="text-xs text-slate-200 truncate flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3 text-brand-orange" />
+                <span>{venue.region || venue.destination}</span>
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-sm font-bold text-emerald-300 bg-black/60 px-2 py-1 rounded-lg backdrop-blur-xs block">
+                {formatPrice(venue.price)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3.5 space-y-3">
+          <p className="text-xs text-brand-navy/70 dark:text-slate-300 line-clamp-2">
+            {venue.description}
+          </p>
+
+          {/* Direct Action Button + Google Maps Link */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate(`/explore?search=${encodeURIComponent(venue.name)}`)}
+              className="py-2 px-3 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <ActionIcon className="w-3.5 h-3.5" />
+              <span>{actionLabel}</span>
+            </button>
+
+            <a
+              href={venue.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name + ' ' + venue.destination)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2 px-3 rounded-xl bg-white dark:bg-slate-700 hover:bg-brand-sand dark:hover:bg-slate-600 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-brand-teal" />
+              <span>Google Maps</span>
+            </a>
+          </div>
+
+          {/* Real-Time Transit & Live Fare Breakdown */}
+          {venue.transit && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+              {/* Uber Live Estimates */}
+              <div className="p-2.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-xs text-amber-400">
+                    <Car className="w-3.5 h-3.5" />
+                    <span>Uber Live Rates</span>
+                  </span>
+                  <span className="text-[10px] text-slate-300">~{venue.transit.distanceKm} km</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-[10px] bg-slate-800/80 p-1.5 rounded-lg text-center">
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">Auto</span>
+                    <strong className="text-amber-300">₹{venue.transit.uber.autoFare}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">Go</span>
+                    <strong className="text-white">₹{venue.transit.uber.goFare}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px]">Premier</span>
+                    <strong className="text-white">₹{venue.transit.uber.premierFare}</strong>
+                  </div>
+                </div>
+                <a
+                  href={venue.transit.uber.deepLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] transition-colors"
+                >
+                  Open in Uber App ↗
+                </a>
+              </div>
+
+              {/* Bus Transit Breakdown */}
+              <div className="p-2.5 rounded-2xl bg-emerald-950/80 text-emerald-100 border border-emerald-500/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-xs text-emerald-300">
+                    <Bus className="w-3.5 h-3.5" />
+                    <span>Bus & Public Transit</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-white bg-emerald-800 px-1.5 py-0.5 rounded">
+                    {venue.transit.bus.fare}
+                  </span>
+                </div>
+                <div className="text-[11px] text-emerald-200">
+                  <p className="font-semibold truncate">{venue.transit.bus.line}</p>
+                  <p className="text-[10px] text-emerald-300/80">{venue.transit.bus.frequency} · from {venue.transit.bus.departurePoint}</p>
+                </div>
+                <a
+                  href={venue.transit.bus.directionsLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors"
+                >
+                  Bus Routes & Timings ↗
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const AiConciergePage = () => {
   const navigate = useNavigate();
   const { trip, setTrip, acceptAiSuggestion } = useTrip();
@@ -262,149 +401,17 @@ export const AiConciergePage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {msg.matchedVenues.map((venue) => {
-                        const isStay = venue.category === 'stay';
-                        const isFood = venue.category === 'dining' || venue.category === 'food';
-                        const actionLabel = isStay ? 'Book Stay Directly' : (isFood ? 'Dine / Eat Here' : 'Visit Spot & View Guide');
-                        const ActionIcon = isStay ? Bed : (isFood ? Utensils : MapPin);
-
-                        return (
-                          <div
-                            key={venue.id}
-                            className="rounded-3xl overflow-hidden bg-brand-sand/70 dark:bg-slate-800/90 border border-brand-sand-border dark:border-slate-700 shadow-sm text-brand-navy dark:text-slate-100 flex flex-col justify-between"
-                          >
-                            <div>
-                              {/* Venue Card Header with Real Photo */}
-                              <div className="relative h-44 w-full overflow-hidden bg-slate-900">
-                                <img
-                                  src={venue.image}
-                                  alt={venue.name}
-                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-
-                                <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/95 text-brand-navy uppercase tracking-wider shadow-sm">
-                                    {venue.category}
-                                  </span>
-                                  <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-white shadow-sm flex items-center gap-1">
-                                    ⭐ {venue.rating || 4.8} ({venue.reviewCount || 120})
-                                  </span>
-                                </div>
-
-                                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                                  <div className="min-w-0 pr-2">
-                                    <h4 className="font-bold text-sm sm:text-base text-white leading-tight drop-shadow-sm">
-                                      {venue.name}
-                                    </h4>
-                                    <p className="text-xs text-slate-200 truncate flex items-center gap-1 mt-0.5">
-                                      <MapPin className="w-3 h-3 text-brand-orange" />
-                                      <span>{venue.region || venue.destination}</span>
-                                    </p>
-                                  </div>
-                                  <div className="text-right shrink-0">
-                                    <span className="text-sm font-bold text-emerald-300 bg-black/60 px-2 py-1 rounded-lg backdrop-blur-xs block">
-                                      {formatPrice(venue.price)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="p-3.5 space-y-3">
-                                <p className="text-xs text-brand-navy/70 dark:text-slate-300 line-clamp-2">
-                                  {venue.description}
-                                </p>
-
-                                {/* Direct Action Button + Google Maps Link */}
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() => navigate(`/explore?search=${encodeURIComponent(venue.name)}`)}
-                                    className="py-2 px-3 rounded-xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                                  >
-                                    <ActionIcon className="w-3.5 h-3.5" />
-                                    <span>{actionLabel}</span>
-                                  </button>
-
-                                  <a
-                                    href={venue.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name + ' ' + venue.destination)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="py-2 px-3 rounded-xl bg-white dark:bg-slate-700 hover:bg-brand-sand dark:hover:bg-slate-600 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                                  >
-                                    <ExternalLink className="w-3.5 h-3.5 text-brand-teal" />
-                                    <span>Google Maps</span>
-                                  </a>
-                                </div>
-
-                                {/* Real-Time Transit & Live Fare Breakdown */}
-                                {venue.transit && (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
-                                    {/* Uber Live Estimates */}
-                                    <div className="p-2.5 rounded-2xl bg-slate-900 text-white space-y-1.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-bold flex items-center gap-1.5 text-xs text-amber-400">
-                                          <Car className="w-3.5 h-3.5" />
-                                          <span>Uber Live Rates</span>
-                                        </span>
-                                        <span className="text-[10px] text-slate-300">~{venue.transit.distanceKm} km</span>
-                                      </div>
-                                      <div className="grid grid-cols-3 gap-1 text-[10px] bg-slate-800/80 p-1.5 rounded-lg text-center">
-                                        <div>
-                                          <span className="text-slate-400 block text-[9px]">Auto</span>
-                                          <strong className="text-amber-300">₹{venue.transit.uber.autoFare}</strong>
-                                        </div>
-                                        <div>
-                                          <span className="text-slate-400 block text-[9px]">Go</span>
-                                          <strong className="text-white">₹{venue.transit.uber.goFare}</strong>
-                                        </div>
-                                        <div>
-                                          <span className="text-slate-400 block text-[9px]">Premier</span>
-                                          <strong className="text-white">₹{venue.transit.uber.premierFare}</strong>
-                                        </div>
-                                      </div>
-                                      <a
-                                        href={venue.transit.uber.deepLink}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block text-center py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] transition-colors"
-                                      >
-                                        Open in Uber App ↗
-                                      </a>
-                                    </div>
-
-                                    {/* Bus Transit Breakdown */}
-                                    <div className="p-2.5 rounded-2xl bg-emerald-950/80 text-emerald-100 border border-emerald-500/20 space-y-1.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-bold flex items-center gap-1.5 text-xs text-emerald-300">
-                                          <Bus className="w-3.5 h-3.5" />
-                                          <span>Bus & Public Transit</span>
-                                        </span>
-                                        <span className="text-[10px] font-bold text-white bg-emerald-800 px-1.5 py-0.5 rounded">
-                                          {venue.transit.bus.fare}
-                                        </span>
-                                      </div>
-                                      <div className="text-[11px] text-emerald-200">
-                                        <p className="font-semibold truncate">{venue.transit.bus.line}</p>
-                                        <p className="text-[10px] text-emerald-300/80">{venue.transit.bus.frequency} · from {venue.transit.bus.departurePoint}</p>
-                                      </div>
-                                      <a
-                                        href={venue.transit.bus.directionsLink}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block text-center py-1.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors"
-                                      >
-                                        Bus Routes & Timings ↗
-                                      </a>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {msg.matchedVenues.map((venue) => (
+                        <MatchedVenueCard
+                          key={venue.id}
+                          venue={venue}
+                          navigate={navigate}
+                          formatPrice={formatPrice}
+                        />
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
                 {/* Structured Suggestion Cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
