@@ -531,5 +531,125 @@ router.post('/conflicts/check', (req, res) => {
   });
 });
 
+// POST /api/ai/chat - Server-side secure AI cascade (protects API keys from client browser)
+router.post('/chat', async (req, res) => {
+  const { prompt, conversationHistory = [] } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ success: false, message: 'Prompt is required' });
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+
+  const SYSTEM_PROMPT = `You are TripTandem's AI Travel Concierge. You provide ultra-fast, dynamic, and engaging travel recommendations across India (Goa, Karnataka coasts including Udupi, Malpe, Kaup, Mangalore, Panambur, Tannirbhavi, Manali, Jaipur, Kerala, etc.) and worldwide.
+When answering, prioritize:
+1. Vibrant, concise guidance with estimated costs in INR (₹).
+2. Recommend verified beachfront stays, heritage spots, cafes, and scenic vistas.
+3. Always mention real-time estimated transit: Uber (Auto, Go, Premier) and local bus routes with expected fares in ₹ INR.
+4. Keep replies snappy, friendly, and well-structured with clear bullet points or day-by-day plans when asked for itineraries.`;
+
+  // 1. Try Gemini 2.0 Flash
+  if (geminiKey) {
+    try {
+      const contents = [
+        ...conversationHistory.slice(-4).map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text }]
+        })),
+        { role: 'user', parts: [{ text: prompt }] }
+      ];
+      const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
+        })
+      });
+      if (gRes.ok) {
+        const data = await gRes.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return res.json({ success: true, data: { text, provider: 'Google Gemini 2.0 Flash (Server Secure)' } });
+      }
+    } catch (e) {
+      console.warn('Server Gemini call failed:', e.message);
+    }
+  }
+
+  // 2. Try OpenAI GPT-4o Mini
+  if (openAiKey) {
+    try {
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...conversationHistory.slice(-4).map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        })),
+        { role: 'user', content: prompt }
+      ];
+      const oRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openAiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages,
+          temperature: 0.7,
+          max_tokens: 800,
+        })
+      });
+      if (oRes.ok) {
+        const data = await oRes.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text) return res.json({ success: true, data: { text, provider: 'OpenAI GPT-4o Mini (Server Secure)' } });
+      }
+    } catch (e) {
+      console.warn('Server OpenAI call failed:', e.message);
+    }
+  }
+
+  // 3. Try OpenRouter Multi-Model
+  if (openRouterKey) {
+    try {
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...conversationHistory.slice(-4).map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        })),
+        { role: 'user', content: prompt }
+      ];
+      const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openRouterKey}`,
+          'X-Title': 'TripTandem Travel AI',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.0-flash-001',
+          models: ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini', 'meta-llama/llama-3.3-70b-instruct'],
+          messages,
+          temperature: 0.7,
+          max_tokens: 800,
+        })
+      });
+      if (orRes.ok) {
+        const data = await orRes.json();
+        const text = data.choices?.[0]?.message?.content;
+        if (text) return res.json({ success: true, data: { text, provider: 'OpenRouter Multi-Model (Server Secure)' } });
+      }
+    } catch (e) {
+      console.warn('Server OpenRouter call failed:', e.message);
+    }
+  }
+
+  return res.json({ success: false, data: null });
+});
+
 export default router;
 

@@ -83,6 +83,7 @@ export const store = {
   trips: [
     {
       id: 'trip-goa-2026',
+      inviteCode: 'TANDEM-GOA-77',
       title: 'Goa Coastal Rhythm & Sunsets',
       destination: 'Goa, India',
       coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200&auto=format&fit=crop&q=80',

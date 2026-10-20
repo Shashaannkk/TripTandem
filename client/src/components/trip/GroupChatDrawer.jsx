@@ -290,10 +290,16 @@ export const GroupChatDrawer = () => {
 
           if (isSystem) {
             return (
-              <div key={msg.id} className="text-center my-2">
-                <span className="inline-block px-3 py-1 rounded-full bg-white dark:bg-slate-800 text-[11px] text-brand-navy/60 dark:text-slate-300 border border-brand-sand-border dark:border-slate-700 shadow-subtle">
-                  ✨ {msg.text}
-                </span>
+              <div key={msg.id} className="flex flex-col items-center justify-center my-3 animate-fadeIn">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500/15 via-brand-orange/15 to-teal-500/15 border border-brand-orange/30 dark:border-brand-orange/20 shadow-xs text-xs font-semibold text-brand-navy dark:text-slate-200">
+                  <span className="p-1 rounded-full bg-gradient-to-tr from-brand-orange to-amber-400 text-white shadow-xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="tracking-tight">{msg.text}</span>
+                  <span className="text-[10px] text-brand-navy/50 dark:text-slate-400 font-normal ml-1">
+                    {msg.timestamp}
+                  </span>
+                </div>
               </div>
             );
           }
@@ -308,8 +314,12 @@ export const GroupChatDrawer = () => {
               {!isMe && (
                 <div className="relative shrink-0 mb-1">
                   <img
-                    src={msg.senderAvatar || '/cute_robot.jpg'}
+                    src={msg.senderAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                     alt={msg.senderName}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                    }}
                     className={`w-7 h-7 rounded-full object-cover ring-1 ${
                       isAi ? 'ring-purple-500 shadow-sm' : 'ring-brand-sand-border'
                     }`}

@@ -420,6 +420,24 @@ export const api = {
     return { hasConflicts: false, conflicts: [] };
   },
 
+  // Secure Backend AI Chat (uses server-side keys without exposing them to browser)
+  async chatWithAi(prompt, conversationHistory = []) {
+    try {
+      const res = await fetch(`${BASE_URL}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, conversationHistory }),
+      });
+      if (res && res.ok) {
+        const data = await safeJson(res);
+        if (data && data.success && data.data) return data.data;
+      }
+    } catch (e) {
+      console.warn('Backend secure AI chat check:', e.message);
+    }
+    return null;
+  },
+
   // AI Concierge
   async queryAiConcierge(query, tripId, partySize = 4, budgetCeiling) {
     try {

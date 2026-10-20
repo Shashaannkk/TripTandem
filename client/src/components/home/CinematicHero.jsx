@@ -9,7 +9,8 @@ import {
   ArrowRight, 
   ChevronDown, 
   Compass,
-  AlertCircle
+  AlertCircle,
+  Ticket
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTrip } from '../../context/TripContext';
@@ -21,7 +22,7 @@ import { validateBookingDates } from '../../utils/dateUtils';
 export const CinematicHero = () => {
   const navigate = useNavigate();
   const { formatPrice } = useAuth();
-  const { createTripFromBooking } = useTrip();
+  const { createTripFromBooking, setIsJoinModalOpen } = useTrip();
   const videoRef = useRef(null);
 
   const [videoFailed, setVideoFailed] = useState(false);
@@ -293,18 +294,26 @@ export const CinematicHero = () => {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <button
             onClick={() => navigate('/workspace/trip-goa-2026')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30 px-6 py-2.5 rounded-full text-xs font-semibold transition-all shadow-subtle group"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-brand-orange to-amber-500 hover:from-brand-orange-hover hover:to-amber-600 text-white font-bold px-6 py-2.5 rounded-full text-xs transition-all shadow-card hover:shadow-card-hover group cursor-pointer"
           >
-            <span>Open Goa Trip Demo Workspace</span>
+            <span>🚀 Enter Live Goa Trip Workspace</span>
             <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
           </button>
 
           <button
+            onClick={() => setIsJoinModalOpen(true)}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-brand-teal/85 hover:bg-brand-teal text-white backdrop-blur-md border border-brand-teal/40 px-5 py-2.5 rounded-full text-xs font-semibold transition-all shadow-subtle group cursor-pointer"
+          >
+            <Ticket className="w-3.5 h-3.5 text-brand-yellow" />
+            <span>Join Crew with Code</span>
+          </button>
+
+          <button
             onClick={() => navigate('/explore')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-black/30 hover:bg-black/50 text-white backdrop-blur-md border border-white/25 px-6 py-2.5 rounded-full text-xs font-semibold transition-all"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/25 px-5 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
           >
             <Compass className="w-3.5 h-3.5 text-brand-teal" />
-            <span>Browse All Venues & Map</span>
+            <span>Browse Places</span>
           </button>
         </div>
 

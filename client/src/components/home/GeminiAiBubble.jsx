@@ -25,6 +25,7 @@ import {
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAiChat } from '../../services/aiChatService';
+import { AiSettingsModal } from '../trip/AiSettingsModal';
 import confetti from 'canvas-confetti';
 
 /**
@@ -67,18 +68,13 @@ export const GeminiAiBubble = ({ destination = '' }) => {
   const navigate = useNavigate();
   const { setTrip, trip, acceptAiSuggestion } = useTrip();
   const { currentUser, showToast, formatPrice } = useAuth();
-  const { messages, isLoading, sendMessage, clearHistory, lastPlan, openRouterKey, setOpenRouterKey } = useAiChat(trip?.id);
+  const { messages, isLoading, sendMessage, clearHistory, lastPlan, aiKeys } = useAiChat(trip?.id);
 
   const [isOpen, setIsOpen] = useState(false);
   const [promptInput, setPromptInput] = useState('');
   const [activeDayTab, setActiveDayTab] = useState(1);
-  const [isOpenRouterModalOpen, setIsOpenRouterModalOpen] = useState(false);
-  const [keyInput, setKeyInput] = useState(openRouterKey || '');
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    if (openRouterKey) setKeyInput(openRouterKey);
-  }, [openRouterKey]);
 
   const samplePrompts = [
     { label: '🏖️ 3-Day Goa Escape', text: 'Plan a 3-day balanced budget Goa trip under ₹20,000 with sunset dining' },
@@ -239,15 +235,15 @@ export const GeminiAiBubble = ({ destination = '' }) => {
 
             {/* Header Action Buttons */}
             <div className="flex items-center gap-1">
-              {/* OpenRouter API Key Configuration */}
+              {/* Fast Multi-Model AI Settings */}
               <button
-                onClick={() => setIsOpenRouterModalOpen(true)}
+                onClick={() => setIsAiSettingsOpen(true)}
                 className={`p-1.5 rounded-full transition-colors ${
-                  openRouterKey
+                  (aiKeys?.geminiKey || aiKeys?.openAiKey || aiKeys?.openRouterKey)
                     ? 'text-brand-teal bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60'
                     : 'text-brand-navy/50 hover:text-brand-orange hover:bg-brand-sand dark:text-slate-400 dark:hover:bg-slate-800'
                 }`}
-                title={openRouterKey ? 'OpenRouter AI Active (Custom Key)' : 'Connect OpenRouter API Key'}
+                title="Configure Fast AI Models & Fallbacks (Gemini, OpenAI, OpenRouter)"
               >
                 <Key className="w-3.5 h-3.5" />
               </button>
@@ -315,13 +311,20 @@ export const GeminiAiBubble = ({ destination = '' }) => {
                     }`}
                   >
                     {!isUser && (
-                      <div className="flex items-center gap-1.5 text-brand-orange font-bold text-[11px] pb-1 border-b border-brand-sand-border/60 dark:border-slate-800">
-                        <img
-                          src="/cute_robot.jpg"
-                          alt="AI Robot"
-                          className="w-4 h-4 rounded-full object-cover"
-                        />
-                        <span>Tandem AI Travel Buddy</span>
+                      <div className="flex items-center justify-between gap-1 text-[11px] pb-1 border-b border-brand-sand-border/60 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5 text-brand-orange font-bold">
+                          <img
+                            src="/cute_robot.jpg"
+                            alt="AI Robot"
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                          <span>Tandem AI Buddy</span>
+                        </div>
+                        {msg.providerUsed && (
+                          <span className="text-[9px] font-semibold text-brand-teal dark:text-teal-400 bg-brand-teal-light dark:bg-teal-950/40 px-1.5 py-0.2 rounded-full border border-teal-500/20">
+                            ⚡ {msg.providerUsed}
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -352,8 +355,13 @@ export const GeminiAiBubble = ({ destination = '' }) => {
                               {/* Venue Card Header with Real Photo */}
                               <div className="relative h-24 w-full overflow-hidden bg-slate-900">
                                 <img
-                                  src={venue.image}
+                                  src={venue.image || venue.coverImage || (venue.images && venue.images[0]) || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80'}
                                   alt={venue.name}
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80';
+                                  }}
                                   className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
@@ -595,107 +603,12 @@ export const GeminiAiBubble = ({ destination = '' }) => {
         </button>
       </div>
 
-      {/* OpenRouter API Key Settings Modal */}
-      {isOpenRouterModalOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#0E1A2E] rounded-3xl p-6 border border-brand-sand-border dark:border-slate-800 shadow-2xl space-y-4 animate-fadeIn text-left">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-2xl bg-brand-teal-light dark:bg-teal-950/60 text-brand-teal">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-brand-navy dark:text-white">
-                    OpenRouter AI Integration
-                  </h3>
-                  <p className="text-xs text-brand-navy/60 dark:text-slate-400">
-                    Connect Gemini 2.0 Flash, Llama 3.3, or Claude
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsOpenRouterModalOpen(false)}
-                className="p-1 rounded-full text-brand-navy/40 hover:text-brand-navy dark:text-slate-400 dark:hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs text-brand-navy/70 dark:text-slate-300">
-              <p>
-                Enter your <strong>OpenRouter API Key</strong> to ask completely open-ended travel questions, general knowledge, custom itineraries, and budget calculations.
-              </p>
-              <p className="text-[11px] text-brand-navy/50 dark:text-slate-400">
-                TripTandem automatically grounds all responses with direct booking links, live Uber pricing, and bus transit schedules.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-brand-navy dark:text-slate-200">
-                OpenRouter API Key
-              </label>
-              <input
-                type="password"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-brand-sand dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-xs font-mono text-brand-navy dark:text-white focus:outline-none focus:border-brand-teal"
-              />
-              <div className="flex items-center justify-between text-[11px] pt-1">
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-brand-teal hover:underline flex items-center gap-1"
-                >
-                  <span>Get an OpenRouter Key</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-                {openRouterKey && (
-                  <span className="text-emerald-500 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Key connected
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-brand-sand-border dark:border-slate-800">
-              {openRouterKey && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenRouterKey('');
-                    setKeyInput('');
-                    showToast('OpenRouter API key cleared. Using built-in travel engine.', 'info');
-                    setIsOpenRouterModalOpen(false);
-                  }}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                >
-                  Remove Key
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsOpenRouterModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-brand-navy/70 dark:text-slate-300 hover:bg-brand-sand dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenRouterKey(keyInput.trim());
-                  showToast(keyInput.trim() ? 'OpenRouter API key saved!' : 'Switched to built-in travel engine', 'success');
-                  setIsOpenRouterModalOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-teal hover:bg-teal-700 text-white shadow-sm transition-colors cursor-pointer"
-              >
-                Save & Activate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Unified Fast Multi-Model AI Settings Modal */}
+      <AiSettingsModal
+        isOpen={isAiSettingsOpen}
+        onClose={() => setIsAiSettingsOpen(false)}
+        onSaveNotification={(msg) => showToast(msg, 'success')}
+      />
 
     </div>
   );

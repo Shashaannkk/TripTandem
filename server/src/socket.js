@@ -17,6 +17,50 @@ export function setupSocketIO(io) {
       }
       roomPresences.get(tripId).set(socket.id, user);
 
+      // Check trip in memory store and register new member if not already joined
+      const trip = store.trips.find(t => t.id === tripId);
+      if (trip && user && (user.id || user.name)) {
+        if (!trip.members) trip.members = [];
+        const existingIdx = trip.members.findIndex(
+          m => (m.id && user.id && m.id === user.id) ||
+               (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase())
+        );
+
+        if (existingIdx === -1) {
+          const newMemberObj = {
+            id: user.id || `user-${Date.now().toString(36)}`,
+            name: user.name || 'Traveler',
+            email: user.email || '',
+            role: user.role || 'Planner',
+            avatar: user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            color: user.color || '#FF6B45',
+            status: 'online',
+            joinedAt: new Date().toISOString(),
+          };
+
+          trip.members.push(newMemberObj);
+          if (!trip.participantIds) trip.participantIds = [];
+          if (!trip.participantIds.includes(newMemberObj.id)) trip.participantIds.push(newMemberObj.id);
+
+          if (!trip.chat) trip.chat = [];
+          const joinMsg = {
+            id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            tripId,
+            senderId: 'system',
+            senderName: 'Trip Concierge',
+            senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            text: `${newMemberObj.name} joined the trip room as ${newMemberObj.role}! 🎉 Let's collaborate.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isSystem: true,
+          };
+          trip.chat.push(joinMsg);
+
+          // Broadcast to everyone in room that a new member joined and a system message appeared
+          io.to(`trip_${tripId}`).emit('member_joined', { trip, newMember: newMemberObj });
+          io.to(`trip_${tripId}`).emit('new_message', { message: joinMsg });
+        }
+      }
+
       // Broadcast active collaborators in this trip
       const activeUsers = Array.from(roomPresences.get(tripId).values());
       io.to(`trip_${tripId}`).emit('presence_sync', {
@@ -24,6 +68,11 @@ export function setupSocketIO(io) {
         activeUsers,
         joinedUser: user,
       });
+    });
+
+    // Explicit member join announcement
+    socket.on('member_join', ({ tripId, member, trip }) => {
+      io.to(`trip_${tripId}`).emit('member_joined', { trip, newMember: member });
     });
 
     // 2. User Focus / Location in Workspace
