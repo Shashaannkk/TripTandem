@@ -26,6 +26,7 @@ import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAiChat } from '../../services/aiChatService';
 import { AiSettingsModal } from '../trip/AiSettingsModal';
+import { HotelCardBox } from '../common/HotelCardBox';
 import confetti from 'canvas-confetti';
 
 /**
@@ -341,136 +342,16 @@ export const GeminiAiBubble = ({ destination = '' }) => {
                           <span className="text-[9px] text-brand-navy/50 dark:text-slate-400">Live Uber & Bus</span>
                         </div>
 
-                        {msg.matchedVenues.map((venue) => {
-                          const isStay = venue.category === 'stay';
-                          const isFood = venue.category === 'dining' || venue.category === 'food';
-                          const actionLabel = isStay ? 'Book Stay Directly' : (isFood ? 'Dine / Eat Here' : 'Visit Spot & View Guide');
-                          const ActionIcon = isStay ? Bed : (isFood ? Utensils : MapPin);
-
-                          return (
-                            <div
-                              key={venue.id}
-                              className="rounded-2xl overflow-hidden bg-brand-sand/80 dark:bg-slate-800/90 border border-brand-sand-border dark:border-slate-700 shadow-sm text-brand-navy dark:text-slate-100"
-                            >
-                              {/* Venue Card Header with Real Photo */}
-                              <div className="relative h-24 w-full overflow-hidden bg-slate-900">
-                                <img
-                                  src={venue.image || venue.coverImage || (venue.images && venue.images[0]) || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80'}
-                                  alt={venue.name}
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    e.currentTarget.onerror = null;
-                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80';
-                                  }}
-                                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-                                <div className="absolute top-2 left-2 flex items-center gap-1">
-                                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-white/90 text-brand-navy uppercase tracking-wider">
-                                    {venue.category}
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-amber-500/90 text-white flex items-center gap-0.5">
-                                    ⭐ {venue.rating || 4.8}
-                                  </span>
-                                </div>
-
-                                <div className="absolute bottom-1.5 left-2 right-2 flex items-end justify-between">
-                                  <div className="min-w-0 pr-1">
-                                    <h5 className="font-bold text-[11px] text-white leading-tight truncate">
-                                      {venue.name}
-                                    </h5>
-                                    <p className="text-[9px] text-slate-200 truncate flex items-center gap-0.5">
-                                      <MapPin className="w-2.5 h-2.5 text-brand-orange" />
-                                      <span>{venue.region || venue.destination}</span>
-                                    </p>
-                                  </div>
-                                  <span className="text-[10px] font-bold text-emerald-300 shrink-0 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-xs">
-                                    {formatPrice(venue.price)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="p-2 space-y-1.5">
-                                {/* Direct Action Button + Maps */}
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  <button
-                                    onClick={() => {
-                                      setIsOpen(false);
-                                      navigate(`/explore?search=${encodeURIComponent(venue.name)}`);
-                                    }}
-                                    className="py-1 px-2 rounded-lg bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-bold flex items-center justify-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                  >
-                                    <ActionIcon className="w-3 h-3" />
-                                    <span className="truncate">{actionLabel}</span>
-                                  </button>
-
-                                  <a
-                                    href={venue.googleMapsLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name + ' ' + venue.destination)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="py-1 px-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-brand-sand dark:hover:bg-slate-600 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-600 text-[9px] font-semibold flex items-center justify-center gap-1 transition-colors"
-                                  >
-                                    <ExternalLink className="w-3 h-3 text-brand-teal" />
-                                    <span>Google Maps</span>
-                                  </a>
-                                </div>
-
-                                {/* Real-Time Uber & Bus Transit Estimate Grid */}
-                                {venue.transit && (
-                                  <div className="grid grid-cols-1 gap-1 text-[9px]">
-                                    {/* Uber Box */}
-                                    <div className="p-1.5 rounded-lg bg-slate-900 text-white space-y-0.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-bold flex items-center gap-1 text-[9px] text-amber-400">
-                                          <Car className="w-3 h-3" />
-                                          <span>Uber Rates (~{venue.transit.distanceKm} km)</span>
-                                        </span>
-                                        <a
-                                          href={venue.transit.uber.deepLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-[8px] text-amber-300 hover:underline"
-                                        >
-                                          Open Uber ↗
-                                        </a>
-                                      </div>
-                                      <div className="flex items-center justify-between text-[8px] text-slate-200">
-                                        <span>Auto: <strong>₹{venue.transit.uber.autoFare}</strong></span>
-                                        <span>Go: <strong>₹{venue.transit.uber.goFare}</strong></span>
-                                        <span>Premier: <strong>₹{venue.transit.uber.premierFare}</strong></span>
-                                      </div>
-                                    </div>
-
-                                    {/* Bus Transit Box */}
-                                    <div className="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-100 border border-emerald-500/20 space-y-0.5">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-bold flex items-center gap-1 text-[9px] text-emerald-300">
-                                          <Bus className="w-3 h-3" />
-                                          <span>Bus Transit</span>
-                                        </span>
-                                        <span className="text-[8px] font-bold text-white bg-emerald-800/80 px-1 rounded">
-                                          {venue.transit.bus.fare}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center justify-between text-[8px] text-emerald-200">
-                                        <span className="truncate max-w-[170px]">{venue.transit.bus.line}</span>
-                                        <a
-                                          href={venue.transit.bus.directionsLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-[8px] text-emerald-300 hover:underline shrink-0"
-                                        >
-                                          Routes ↗
-                                        </a>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {msg.matchedVenues.map((venue) => (
+                          <HotelCardBox
+                            key={venue.id}
+                            venue={venue}
+                            onBookAction={() => {
+                              setIsOpen(false);
+                              navigate(`/explore?search=${encodeURIComponent(venue.name)}`);
+                            }}
+                          />
+                        ))}
                       </div>
                     )}
 

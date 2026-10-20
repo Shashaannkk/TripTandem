@@ -132,40 +132,60 @@ export function clearAiChatHistory() {
   saveAiMessages(DEFAULT_MESSAGES);
 }
 
+// Comprehensive destination synonym mapping to strictly lock recommendations to the queried city
+export const DESTINATION_SYNONYMS = {
+  'Udupi': ['udupi', 'malpe', 'kaup', 'kapu', 'bengre', 'kodi bengre', 'maravanthe', 'padubidri', 'st mary'],
+  'Mangalore': ['mangalore', 'mangaluru', 'panambur', 'tannirbhavi', 'someshwara', 'surathkal', 'sasihithlu'],
+  'Pondicherry': ['pondicherry', 'puducherry', 'white town', 'promenade beach', 'rock beach'],
+  'Coorg': ['coorg', 'madikeri', 'kabbinakad', 'abbey falls', 'raja seat'],
+  'Gokarna': ['gokarna', 'om beach', 'kudle', 'belekan', 'half moon beach'],
+  'Ooty': ['ooty', 'nilgiri', 'doddabetta'],
+  'Munnar': ['munnar', 'pallivasal', 'eravikulam', 'anamudi'],
+  'Darjeeling': ['darjeeling', 'tiger hill', 'batasia'],
+  'Agra': ['agra', 'taj mahal', 'mehtab bagh'],
+  'Amritsar': ['amritsar', 'golden temple', 'harmandir sahib', 'wagah'],
+  'Shimla': ['shimla', 'the ridge', 'jakhoo'],
+  'Jodhpur': ['jodhpur', 'mehrangarh'],
+  'Jaisalmer': ['jaisalmer', 'sam sand dunes'],
+  'Andaman Islands': ['andaman', 'havelock', 'radhanagar', 'port blair', 'swaraj dweep'],
+  'Kerala': ['kerala', 'kochi', 'alleppey', 'alappuzha', 'wayanad', 'varkala'],
+  'Manali': ['manali', 'solang', 'rohtang', 'old manali'],
+  'Jaipur': ['jaipur', 'amber fort', 'hawa mahal'],
+  'Udaipur': ['udaipur', 'lake pichola', 'city palace'],
+  'Varanasi': ['varanasi', 'kashi', 'banaras', 'dashashwamedh', 'ghat'],
+  'Rishikesh': ['rishikesh', 'laxman jhula', 'triveni'],
+  'Mumbai': ['mumbai', 'bombay', 'marine drive', 'bandra'],
+  'Bengaluru': ['bengaluru', 'bangalore', 'cubbon', 'indiranagar'],
+  'Goa': ['goa', 'anjuna', 'baga', 'calangute', 'vagator', 'palolem', 'candolim'],
+};
+
 /**
- * Scan text to match any venues from TripTandem's curated database.
- * Computes Uber real-time fares and accurate bus transit details for each match.
+ * Accurately extract the target travel destination from text
  */
-export function matchVenuesFromText(text, maxCount = 3) {
-  if (!text || typeof text !== 'string') return [];
+export function extractDestinationFromText(text, fallback = '') {
+  if (!text || typeof text !== 'string') return fallback;
   const lower = text.toLowerCase();
-  const matched = [];
-
-  for (const venue of PLACES_CATALOG) {
-    const vNameLower = (venue.name || '').toLowerCase();
-    const vRegionLower = (venue.region || '').toLowerCase();
-
-    const keyPhrases = [
-      vNameLower,
-      vRegionLower,
-      ...vNameLower.split(' ').filter(w => w.length > 5 && !['beach', 'resort', 'villa', 'hotel', 'sanctuary', 'coastal'].includes(w)),
-    ];
-
-    const isMatch = keyPhrases.some(kp => kp && lower.includes(kp));
-    if (isMatch && !matched.some(m => m.id === venue.id)) {
-      const validImage = venue.coverImage || venue.image || (venue.images && venue.images[0]) || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80';
-      matched.push({
-        ...venue,
-        image: validImage,
-        coverImage: validImage,
-        transit: getVenueTransitDetails(venue),
-      });
-      if (matched.length >= maxCount) break;
+  for (const [canonical, synonyms] of Object.entries(DESTINATION_SYNONYMS)) {
+    if (synonyms.some(s => lower.includes(s))) {
+      return canonical;
     }
   }
+  return fallback;
+}
+
+/**
+ * Match real verified venues strictly locked to the queried destination.
+ * Eliminates cross-destination leakage so Udupi queries NEVER return Goa hotels.
+ */
+export function matchVenuesFromText(text, maxCount = 3, destinationHint = '') {
+  if (!text || typeof text !== 'string') return [];
+  const lower = text.toLowerCase();
+
+  // 1. Resolve target destination (User query priority > Hint > AI reply text)
+  const detectedDest = extractDestinationFromText(text, destinationHint || '');
 
   const formatVenue = (v) => {
-    const validImage = v.coverImage || v.image || (v.images && v.images[0]) || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop&q=80';
+    const validImage = v.coverImage || v.image || (v.images && v.images[0]) || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&auto=format&fit=crop&q=80';
     return {
       ...v,
       image: validImage,
@@ -174,27 +194,44 @@ export function matchVenuesFromText(text, maxCount = 3) {
     };
   };
 
-  // Broad destination matching if no specific hotel was matched
-  if (matched.length === 0) {
-    if (lower.includes('udupi') || lower.includes('malpe') || lower.includes('kaup') || lower.includes('bengre') || lower.includes('maravanthe') || lower.includes('padubidri')) {
-      const udupiVenues = PLACES_CATALOG.filter(v => v.destination === 'Udupi').slice(0, 2);
-      udupiVenues.forEach(v => matched.push(formatVenue(v)));
-    } else if (lower.includes('mangalore') || lower.includes('panambur') || lower.includes('tannirbhavi') || lower.includes('someshwara') || lower.includes('surathkal') || lower.includes('sasihithlu')) {
-      const mlrVenues = PLACES_CATALOG.filter(v => v.destination === 'Mangalore').slice(0, 2);
-      mlrVenues.forEach(v => matched.push(formatVenue(v)));
-    } else if (lower.includes('goa') || lower.includes('curlies') || lower.includes('solitude')) {
-      const goaVenues = PLACES_CATALOG.filter(v => v.destination === 'Goa').slice(0, 2);
-      goaVenues.forEach(v => matched.push(formatVenue(v)));
-    } else if (lower.includes('manali')) {
-      const manaliVenues = PLACES_CATALOG.filter(v => v.destination === 'Manali').slice(0, 2);
-      manaliVenues.forEach(v => matched.push(formatVenue(v)));
-    } else if (lower.includes('jaipur')) {
-      const jaipurVenues = PLACES_CATALOG.filter(v => v.destination === 'Jaipur').slice(0, 2);
-      jaipurVenues.forEach(v => matched.push(formatVenue(v)));
+  // If a destination is recognized, STRICTLY lock recommendations to that destination only
+  if (detectedDest) {
+    const destVenues = PLACES_CATALOG.filter(v => 
+      v.destination && v.destination.toLowerCase() === detectedDest.toLowerCase()
+    );
+
+    if (destVenues.length > 0) {
+      // 1a. Check for specific venue name matches inside that destination
+      const specificMatches = [];
+      for (const venue of destVenues) {
+        const vName = (venue.name || '').toLowerCase();
+        const vRegion = (venue.region || '').toLowerCase();
+        if (lower.includes(vName) || lower.includes(vRegion)) {
+          specificMatches.push(formatVenue(venue));
+          if (specificMatches.length >= maxCount) break;
+        }
+      }
+
+      if (specificMatches.length > 0) {
+        return specificMatches;
+      }
+
+      // 1b. If no specific property name matched, return top stays & spots for THAT destination
+      return destVenues.slice(0, maxCount).map(formatVenue);
     }
   }
 
-  return matched;
+  // Fallback: If no destination was identified, check exact full venue name matches only (no greedy substring splitting)
+  const exactMatched = [];
+  for (const venue of PLACES_CATALOG) {
+    const vName = (venue.name || '').toLowerCase();
+    if (vName.length > 6 && lower.includes(vName)) {
+      exactMatched.push(formatVenue(venue));
+      if (exactMatched.length >= maxCount) break;
+    }
+  }
+
+  return exactMatched;
 }
 
 // -----------------------------------------------------------------------------
@@ -523,7 +560,7 @@ export function useAiChat(activeTripId = null) {
     }
 
     // 3. Ground against catalog to show Direct Action Buttons + Uber & Bus Transit
-    const matchedVenues = matchVenuesFromText(trimmed + ' ' + replyText, 3);
+    const matchedVenues = matchVenuesFromText(trimmed + ' ' + replyText, 3, destinationHint);
 
     const assistantMsg = {
       id: `asst-${Date.now()}`,
