@@ -5,7 +5,8 @@ import { CategoryBar } from '../components/home/CategoryBar';
 import { VenueCard } from '../components/home/VenueCard';
 import { CollaborationBanner } from '../components/home/CollaborationBanner';
 import { VenueDetailModal } from '../components/venue/VenueDetailModal';
-import { FEATURED_DESTINATIONS, VENUES } from '../data/mockData';
+import { PopularDestinationsCarousel } from '../components/home/PopularDestinationsCarousel';
+import { VENUES } from '../data/mockData';
 import { ArrowRight, Sparkles, MapPin, Star, Flame, Compass } from 'lucide-react';
 
 export const HomePage = () => {
@@ -39,56 +40,8 @@ export const HomePage = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-20">
         
-        {/* Section 1: Popular Destinations */}
-        <section id="destinations-section" className="space-y-6 scroll-mt-24">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-orange uppercase tracking-wider mb-1">
-                <Flame className="w-3.5 h-3.5" />
-                <span>Travel Discovery</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-semibold text-brand-navy">
-                Popular Destinations
-              </h2>
-            </div>
-            <button
-              onClick={() => navigate('/explore')}
-              className="text-xs sm:text-sm font-semibold text-brand-orange hover:text-brand-orange-hover flex items-center gap-1 group"
-            >
-              <span>Explore all</span>
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {FEATURED_DESTINATIONS.map((dest) => (
-              <div
-                key={dest.id}
-                onClick={() => navigate(`/explore?destination=${dest.name}`)}
-                className="group cursor-pointer bg-white rounded-3xl p-3 border border-brand-sand-border shadow-subtle hover:shadow-card-hover transition-all duration-300 transform hover:-translate-y-1"
-              >
-                <div className="aspect-square rounded-2xl overflow-hidden bg-brand-sand relative">
-                  <img
-                    src={dest.image}
-                    alt={dest.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  {dest.trending && (
-                    <span className="absolute top-2 left-2 bg-brand-orange text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                      Trending
-                    </span>
-                  )}
-                </div>
-                <div className="pt-3 px-1 text-center">
-                  <h3 className="font-semibold text-sm text-brand-navy group-hover:text-brand-orange transition-colors">
-                    {dest.name}
-                  </h3>
-                  <p className="text-[11px] text-brand-navy/60 mt-0.5">{dest.country}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* Section 1: Popular Destinations (Netflix-Style 1-Line Carousel with Left/Right Buttons) */}
+        <PopularDestinationsCarousel />
 
         {/* Section 2: Stays Worth Exploring */}
         <section className="space-y-6">

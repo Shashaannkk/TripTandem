@@ -27,6 +27,7 @@ import {
 import { ThemeToggle } from './ThemeToggle';
 import { GoogleGeminiIcon } from '../home/GeminiAiBubble';
 import { JoinTripModal } from '../trip/JoinTripModal';
+import { TransitOverscrollBar } from './TransitOverscrollBar';
 
 export const Navbar = () => {
   const location = useLocation();
@@ -70,6 +71,8 @@ export const Navbar = () => {
 
   return (
     <>
+      {/* Animated Transit Fleet (Train, Bus, Plane, Taxi) revealed when pushed beyond limit */}
+      <TransitOverscrollBar />
       <header className="sticky top-0 z-40 w-full glass-nav bg-brand-sand/90 dark:bg-[#0A111E]/90 backdrop-blur-md border-b border-brand-sand-border/80 dark:border-[#1E2D42] transition-all">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 xl:gap-4 w-full">
           
