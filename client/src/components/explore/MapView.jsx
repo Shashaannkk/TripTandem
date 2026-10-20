@@ -259,6 +259,10 @@ export const MapView = ({ venues = [], onSelectVenue }) => {
               <img
                 src={selectedPin.coverImage || selectedPin.images?.[0] || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=900&auto=format&fit=crop&q=80'}
                 alt={selectedPin.name}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=900&auto=format&fit=crop&q=80';
+                }}
                 className="w-full h-full object-cover"
               />
               {selectedPin.badge && (

@@ -127,7 +127,15 @@ export const ContestedSlotDuelModal = () => {
             }`}>
               <div className="space-y-2">
                 <div className="relative h-32 rounded-xl overflow-hidden bg-slate-200">
-                  <img src={itemA.image} alt={itemA.title} className="w-full h-full object-cover" />
+                  <img
+                    src={itemA.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80'}
+                    alt={itemA.title}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80';
+                    }}
+                    className="w-full h-full object-cover"
+                  />
                   <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-brand-navy">
                     Option A
                   </span>
@@ -152,7 +160,17 @@ export const ContestedSlotDuelModal = () => {
                   <span>{votersA.length} votes</span>
                   <div className="flex items-center -space-x-1.5">
                     {votersA.map((v, i) => (
-                      <img key={i} src={v.userAvatar} alt={v.userName} title={v.userName} className="w-5 h-5 rounded-full border border-white" />
+                      <img
+                        key={i}
+                        src={v.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                        alt={v.userName}
+                        title={v.userName}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                        }}
+                        className="w-5 h-5 rounded-full border border-white object-cover"
+                      />
                     ))}
                   </div>
                 </div>
@@ -188,7 +206,15 @@ export const ContestedSlotDuelModal = () => {
             }`}>
               <div className="space-y-2">
                 <div className="relative h-32 rounded-xl overflow-hidden bg-slate-200">
-                  <img src={itemB.image} alt={itemB.title} className="w-full h-full object-cover" />
+                  <img
+                    src={itemB.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80'}
+                    alt={itemB.title}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80';
+                    }}
+                    className="w-full h-full object-cover"
+                  />
                   <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-brand-navy">
                     Option B
                   </span>
@@ -213,7 +239,17 @@ export const ContestedSlotDuelModal = () => {
                   <span>{votersB.length} votes</span>
                   <div className="flex items-center -space-x-1.5">
                     {votersB.map((v, i) => (
-                      <img key={i} src={v.userAvatar} alt={v.userName} title={v.userName} className="w-5 h-5 rounded-full border border-white" />
+                      <img
+                        key={i}
+                        src={v.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                        alt={v.userName}
+                        title={v.userName}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                        }}
+                        className="w-5 h-5 rounded-full border border-white object-cover"
+                      />
                     ))}
                   </div>
                 </div>

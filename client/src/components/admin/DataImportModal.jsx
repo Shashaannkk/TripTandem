@@ -345,7 +345,7 @@ export const DataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
                       <div className="text-right text-[11px] text-brand-navy/70 flex-shrink-0 pl-3">
                         <span className="font-semibold block capitalize">{venue.type}</span>
                         <span className="text-[10px] text-brand-navy/50">
-                          {venue.coordinates.lat.toFixed(3)}, {venue.coordinates.lng.toFixed(3)}
+                          {venue.coordinates?.lat != null ? Number(venue.coordinates.lat).toFixed(3) : (venue.lat != null ? Number(venue.lat).toFixed(3) : '—')}, {venue.coordinates?.lng != null ? Number(venue.coordinates.lng).toFixed(3) : (venue.lng != null ? Number(venue.lng).toFixed(3) : '—')}
                         </span>
                       </div>
                     </div>

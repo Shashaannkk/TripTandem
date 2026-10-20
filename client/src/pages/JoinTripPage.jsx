@@ -93,7 +93,15 @@ export const JoinTripPage = () => {
             <div className="flex items-center gap-2 overflow-x-auto py-1">
               {(displayedTrip?.members || []).map((m) => (
                 <div key={m.id || m.name} className="flex items-center gap-2 pr-3 py-1 bg-white dark:bg-slate-900 rounded-full border border-brand-sand-border dark:border-slate-700 shrink-0">
-                  <img src={m.avatar} alt={m.name} className="w-6 h-6 rounded-full object-cover" />
+                  <img
+                    src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                    alt={m.name}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                    }}
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
                   <span className="text-xs font-semibold text-brand-navy dark:text-slate-200">
                     {(m.name || 'Member').split(' ')[0]} <span className="text-[10px] text-brand-teal font-normal">({m.role || 'Planner'})</span>
                   </span>
@@ -149,8 +157,16 @@ export const JoinTripPage = () => {
           {/* Current User Badge */}
           <div className="flex items-center justify-between p-3 rounded-2xl border border-brand-sand-border dark:border-slate-700 text-xs">
             <span className="text-brand-navy/60 dark:text-slate-400">Joining as:</span>
-            <div className="flex items-center gap-2 font-bold text-brand-navy dark:text-white">
-              <img src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} alt={currentUser?.name || 'Traveler'} className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-teal" />
+            <div className="flex items-center gap-2 font-medium">
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                alt={currentUser?.name || 'Traveler'}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                }}
+                className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-teal"
+              />
               <span>{currentUser?.name || 'Traveler'}</span>
             </div>
           </div>

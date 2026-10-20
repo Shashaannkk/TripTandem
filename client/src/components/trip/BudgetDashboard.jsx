@@ -764,7 +764,15 @@ export const BudgetDashboard = () => {
               {/* Creditor Persona Info */}
               <div className="flex items-center justify-center gap-2">
                 {creditor?.avatar && (
-                  <img src={creditor.avatar} alt={selectedSettlement.to} className="w-8 h-8 rounded-full object-cover ring-2 ring-brand-teal" />
+                  <img
+                    src={creditor.avatar}
+                    alt={selectedSettlement.to}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                    }}
+                    className="w-8 h-8 rounded-full object-cover ring-2 ring-brand-teal"
+                  />
                 )}
                 <div className="text-left">
                   <div className="text-xs font-bold text-brand-navy dark:text-white flex items-center gap-1">
@@ -790,8 +798,12 @@ export const BudgetDashboard = () => {
               <div className="p-3 bg-brand-sand/60 dark:bg-slate-800 rounded-2xl border border-brand-sand-border dark:border-slate-700 inline-block mx-auto">
                 <div className="w-44 h-44 bg-white rounded-xl border border-brand-sand-border p-2 flex flex-col items-center justify-center shadow-inner">
                   <img
-                    src={creditorQr}
+                    src={creditorQr || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${encodeURIComponent(creditorUpi || 'tandem@upi')}&pn=${encodeURIComponent(selectedSettlement.to)}&am=${selectedSettlement.amount}&cu=INR`}
                     alt={`UPI QR of ${selectedSettlement.to}`}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${encodeURIComponent(creditorUpi || 'tandem@upi')}&pn=${encodeURIComponent(selectedSettlement.to)}&am=${selectedSettlement.amount}&cu=INR`;
+                    }}
                     className="w-full h-full object-contain rounded-lg"
                   />
                 </div>

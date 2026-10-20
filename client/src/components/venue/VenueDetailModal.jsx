@@ -54,7 +54,11 @@ export const VenueDetailModal = ({ venue, onClose }) => {
   if (!venue) return null;
 
   const isFavorite = savedFavorites.includes(venue.id);
-  const images = venue.images && venue.images.length > 0 ? venue.images : [venue.coverImage];
+  const fallbackCover = 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=900&auto=format&fit=crop&q=80';
+  const rawImages = (venue.images && venue.images.length > 0)
+    ? venue.images.filter(Boolean)
+    : [venue.coverImage || venue.image || fallbackCover];
+  const images = rawImages.length > 0 ? rawImages : [fallbackCover];
 
   // Total Stay Amount computation
   const totalStayCost = (venue.price || 0) * bookingNights;
@@ -176,20 +180,32 @@ export const VenueDetailModal = ({ venue, onClose }) => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9]">
             <div className="sm:col-span-2 h-full">
               <img
-                src={images[0]}
+                src={images[0] || fallbackCover}
                 alt={venue.name}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackCover;
+                }}
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="hidden sm:grid grid-rows-2 gap-3 h-full">
               <img
-                src={images[1] || images[0]}
+                src={images[1] || images[0] || fallbackCover}
                 alt={`${venue.name} 2`}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackCover;
+                }}
                 className="w-full h-full object-cover"
               />
               <img
-                src={images[2] || images[0]}
+                src={images[2] || images[0] || fallbackCover}
                 alt={`${venue.name} 3`}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = fallbackCover;
+                }}
                 className="w-full h-full object-cover"
               />
             </div>

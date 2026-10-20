@@ -416,6 +416,22 @@ export const TripProvider = ({ children }) => {
     }
   }, [trip]);
 
+  // Multi-tab storage sync (updates tabs on same browser profile)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'tt_active_trip' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.id) {
+            setTrip(parsed);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Actions
   const castVote = (itemId, voteType = 'up') => {
     setTrip(prev => {

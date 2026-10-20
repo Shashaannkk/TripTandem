@@ -35,7 +35,7 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
       venueId: venue.id,
       venueName: venue.name,
       category: venue.type,
-      image: venue.coverImage,
+      image: venue.coverImage || venue.image || (venue.images && venue.images[0]) || fallbackCover,
       costPerPerson: venue.price,
       location: venue.region || venue.destination,
       notes: `Quick added from Explore. Rated ${venue.rating} ★`,
@@ -52,8 +52,12 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
       {/* Image Container with Carousel Controls */}
       <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-brand-sand">
         <img
-          src={images[currentImageIndex]}
+          src={images[currentImageIndex] || fallbackCover}
           alt={venue.name}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = fallbackCover;
+          }}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
 

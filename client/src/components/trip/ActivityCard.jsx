@@ -57,8 +57,12 @@ export const ActivityCard = ({ item, dayNumber, onMoveUp, onMoveDown, isFirst, i
       {/* Left: Thumbnail & Source Badges */}
       <div className="relative w-full md:w-48 h-36 rounded-2xl overflow-hidden flex-shrink-0 bg-brand-sand">
         <img
-          src={item.image}
+          src={item.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80'}
           alt={item.title}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80';
+          }}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         
@@ -191,8 +195,12 @@ export const ActivityCard = ({ item, dayNumber, onMoveUp, onMoveDown, isFirst, i
                 return (
                   <img
                     key={userId}
-                    src={voter.avatar}
+                    src={voter.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                     alt={voter.name}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                    }}
                     className="w-5 h-5 rounded-full object-cover border border-white"
                     title={voter.name}
                   />

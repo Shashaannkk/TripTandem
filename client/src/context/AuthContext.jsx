@@ -81,6 +81,28 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('tt_favorites', JSON.stringify(savedFavorites));
   }, [savedFavorites]);
 
+  // Synchronize authentication changes (e.g., login/logout) across browser tabs
+  useEffect(() => {
+    const handleAuthStorageChange = (e) => {
+      if (e.key === 'tt_current_user') {
+        if (!e.newValue) {
+          setCurrentUser(null);
+          setAuthToken(null);
+          setIsAuthenticated(false);
+        } else {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            setCurrentUser(sanitizeUser(parsed));
+            setIsAuthenticated(true);
+          } catch {}
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleAuthStorageChange);
+    return () => window.removeEventListener('storage', handleAuthStorageChange);
+  }, []);
+
   const showToast = useCallback((message, type = 'info') => {
     setToastMessage({ message, type, id: Date.now() });
     setTimeout(() => {

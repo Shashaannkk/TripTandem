@@ -43,10 +43,14 @@ router.post('/concierge', async (req, res) => {
     const dining = candidateVenues.filter(v => v.type === 'restaurant' || v.type === 'cafe');
     const experiences = candidateVenues.filter(v => v.type !== 'stay' && v.type !== 'restaurant');
 
-    const selectedStay = stays[0] || candidateVenues[0];
-    const food1 = dining[0] || candidateVenues[1] || selectedStay;
+    const defaultStay = { id: 'v-default-stay', name: `${destination} Boutique Stay`, price: 4800, rating: 4.8, type: 'stay', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&auto=format&fit=crop&q=80' };
+    const defaultFood = { id: 'v-default-food', name: `${destination} Heritage Kitchen`, price: 850, rating: 4.7, type: 'restaurant', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&auto=format&fit=crop&q=80' };
+    const defaultExp = { id: 'v-default-exp', name: `${destination} Sunset Vista Point`, price: 600, rating: 4.9, type: 'attraction', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=900&auto=format&fit=crop&q=80' };
+
+    const selectedStay = stays[0] || candidateVenues[0] || defaultStay;
+    const food1 = dining[0] || candidateVenues[1] || defaultFood;
     const food2 = dining[1] || candidateVenues[2] || food1;
-    const exp1 = experiences[0] || candidateVenues[1] || selectedStay;
+    const exp1 = experiences[0] || candidateVenues[1] || defaultExp;
     const exp2 = experiences[1] || candidateVenues[2] || exp1;
 
     const stayCostPerPerson = Math.round((selectedStay.price || 5000) / (partySize || 4));

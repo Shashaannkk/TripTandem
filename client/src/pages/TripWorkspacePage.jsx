@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { TripHeader } from '../components/trip/TripHeader';
 import { ItineraryDayTabs } from '../components/trip/ItineraryDayTabs';
@@ -10,13 +10,25 @@ import { InviteModal } from '../components/trip/InviteModal';
 import { AddActivityModal } from '../components/trip/AddActivityModal';
 import { ContestedSlotDuelModal } from '../components/trip/ContestedSlotDuelModal';
 import { useTrip } from '../context/TripContext';
+import { api } from '../services/api';
 import { Calendar, Wallet, Sparkles, MessageSquare, Info } from 'lucide-react';
 
 export const TripWorkspacePage = () => {
-  const { trip, isChatOpen, isAiConciergeOpen, conflicts } = useTrip();
+  const { tripId } = useParams();
+  const { trip, setTrip, isChatOpen, isAiConciergeOpen, conflicts } = useTrip();
   const [workspaceTab, setWorkspaceTab] = useState('itinerary'); // 'itinerary' | 'budget'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [targetDayForAdd, setTargetDayForAdd] = useState(1);
+
+  useEffect(() => {
+    if (tripId && trip?.id !== tripId) {
+      api.getTripById(tripId).then(fetched => {
+        if (fetched) {
+          setTrip(fetched);
+        }
+      });
+    }
+  }, [tripId, trip?.id, setTrip]);
 
   const handleOpenAddModal = (dayNumber) => {
     setTargetDayForAdd(dayNumber);
