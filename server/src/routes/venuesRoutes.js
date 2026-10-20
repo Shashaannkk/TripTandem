@@ -1,6 +1,7 @@
 import express from 'express';
 import { store } from '../store.js';
 import { providerRegistry } from '../services/providers/ProviderRegistry.js';
+import { geocodingService } from '../services/GeocodingService.js';
 
 const router = express.Router();
 
@@ -338,8 +339,47 @@ router.post('/admin/import', (req, res) => {
   });
 });
 
-// GET /api/venues - Search & filter venues
-router.get('/', (req, res) => {
+// POST /api/venues/discover - Real-time on-demand multi-provider discovery
+router.post('/discover', async (req, res) => {
+  const { destination = 'Pondicherry', categories = ['hotel', 'restaurant', 'attraction'], limit = 6 } = req.body;
+  try {
+    const result = await providerRegistry.discoverAndEnrich({
+      destination,
+      categories,
+      limit: Number(limit) || 6,
+    });
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to discover places',
+    });
+  }
+});
+
+// GET /api/venues/geocode - Revive geographic location & accurate coordinates
+router.get('/geocode', async (req, res) => {
+  const { destination = 'Goa' } = req.query;
+  try {
+    const coords = await geocodingService.resolveDestination(destination);
+    res.json({
+      success: true,
+      destination,
+      data: coords,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to geocode destination',
+    });
+  }
+});
+
+// GET /api/venues - Search & filter venues with automatic API discovery
+router.get('/', async (req, res) => {
   const { 
     destination, 
     category, 
@@ -353,6 +393,32 @@ router.get('/', (req, res) => {
     provider,
     verificationStatus 
   } = req.query;
+
+  // Auto-enrich destination on-demand if catalog coverage is low
+  const targetDest = (destination && destination !== 'all') ? destination : search;
+  if (targetDest && targetDest.trim().length >= 3) {
+    const dLower = targetDest.toLowerCase().trim();
+    const existingMatches = store.venues.filter(v => 
+      (v.destination && v.destination.toLowerCase().includes(dLower)) ||
+      (v.region && v.region.toLowerCase().includes(dLower)) ||
+      (v.state && v.state.toLowerCase().includes(dLower)) ||
+      (v.name && v.name.toLowerCase().includes(dLower))
+    );
+
+    // If fewer than 4 places exist, invoke real-time discovery via live APIs
+    if (existingMatches.length < 4) {
+      try {
+        const catList = category && category !== 'all' ? [category] : ['attraction', 'restaurant', 'hotel'];
+        await providerRegistry.discoverAndEnrich({
+          destination: targetDest.trim(),
+          categories: catList,
+          limit: 6,
+        });
+      } catch (discErr) {
+        console.warn('Auto-discovery live notice:', discErr.message);
+      }
+    }
+  }
 
   let results = [...store.venues];
 

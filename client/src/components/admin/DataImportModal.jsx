@@ -172,18 +172,40 @@ export const DataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
                 <label className="block text-[11px] font-semibold text-brand-navy mb-1">
                   Destination
                 </label>
-                <select
+                <input
+                  type="text"
+                  list="import-destinations"
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
+                  placeholder="Enter any city or town..."
                   className="w-full text-xs font-medium px-3 py-2.5 rounded-xl border border-brand-sand-border bg-white focus:outline-none focus:border-brand-teal"
-                >
-                  <option value="Goa">Goa (Coastal Corridor)</option>
-                  <option value="Manali">Manali (Himachal Valley)</option>
-                  <option value="Jaipur">Jaipur (Rajasthan)</option>
-                  <option value="Varanasi">Varanasi (Ghats)</option>
-                  <option value="Kerala">Kerala (Backwaters)</option>
-                  <option value="Mumbai">Mumbai (Maharashtra)</option>
-                </select>
+                />
+                <datalist id="import-destinations">
+                  <option value="Pondicherry" />
+                  <option value="Udupi" />
+                  <option value="Mangalore" />
+                  <option value="Gokarna" />
+                  <option value="Coorg" />
+                  <option value="Ooty" />
+                  <option value="Munnar" />
+                  <option value="Darjeeling" />
+                  <option value="Rishikesh" />
+                  <option value="Goa" />
+                  <option value="Manali" />
+                  <option value="Jaipur" />
+                  <option value="Udaipur" />
+                  <option value="Varanasi" />
+                  <option value="Kerala" />
+                  <option value="Mumbai" />
+                  <option value="Bengaluru" />
+                  <option value="New Delhi" />
+                  <option value="Agra" />
+                  <option value="Amritsar" />
+                  <option value="Shimla" />
+                  <option value="Jodhpur" />
+                  <option value="Leh Ladakh" />
+                  <option value="Andaman Islands" />
+                </datalist>
               </div>
 
               {/* Category */}

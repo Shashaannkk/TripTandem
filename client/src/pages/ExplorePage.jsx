@@ -92,14 +92,21 @@ export const ExplorePage = () => {
     fetchRealtimeWeather(searchQuery);
   }, [searchQuery]);
 
-  const loadVenues = async () => {
+  const [isDiscoveringLive, setIsDiscoveringLive] = useState(false);
+
+  const loadVenues = async (targetDest) => {
     try {
-      const venues = await api.getVenues();
+      const params = {};
+      if (targetDest && targetDest.trim() && targetDest.trim() !== 'all') {
+        params.destination = targetDest.trim();
+      }
+      const venues = await api.getVenues(params);
       if (venues && venues.length > 0) {
-        // Blend backend catalog with rich client presets to guarantee 100% destination coverage
-        const existingIds = new Set(venues.map(v => v.id));
-        const missingPresets = VENUES.filter(v => !existingIds.has(v.id));
-        setVenuesList([...venues, ...missingPresets]);
+        setVenuesList((prev) => {
+          const fetchedIds = new Set(venues.map((v) => v.id));
+          const existingOthers = prev.filter((v) => !fetchedIds.has(v.id));
+          return [...venues, ...existingOthers];
+        });
       } else {
         setVenuesList(VENUES);
       }
@@ -110,8 +117,31 @@ export const ExplorePage = () => {
   };
 
   useEffect(() => {
-    loadVenues();
-  }, []);
+    loadVenues(searchQuery);
+  }, [searchQuery]);
+
+  const handleLiveDiscover = async () => {
+    const dest = searchQuery.trim() || 'Goa';
+    setIsDiscoveringLive(true);
+    try {
+      const res = await api.discoverPlaces({
+        destination: dest,
+        categories: ['hotel', 'restaurant', 'attraction'],
+        limit: 8,
+      });
+      if (res && res.venues && res.venues.length > 0) {
+        setVenuesList((prev) => {
+          const newIds = new Set(res.venues.map((v) => v.id));
+          const existingFiltered = prev.filter((v) => !newIds.has(v.id));
+          return [...res.venues, ...existingFiltered];
+        });
+      }
+    } catch (err) {
+      console.warn('Live discovery error:', err);
+    } finally {
+      setIsDiscoveringLive(false);
+    }
+  };
 
   const [filters, setFilters] = useState({
     destination: initialDestination,
@@ -706,14 +736,27 @@ export const ExplorePage = () => {
           <div className="lg:col-span-3 space-y-6">
             
             {/* Results Counter & Search Summary */}
-            <div className="flex items-center justify-between text-xs text-brand-navy/70">
-              <span className="font-semibold text-brand-navy">
-                Showing {filteredVenues.length} results
-                {searchQuery ? ` for "${searchQuery}"` : ''}
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-brand-navy/70">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-brand-navy">
+                  Showing {filteredVenues.length} results
+                  {searchQuery ? ` for "${searchQuery}"` : ''}
+                </span>
+                {searchQuery && (
+                  <button
+                    onClick={handleLiveDiscover}
+                    disabled={isDiscoveringLive}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white transition-all shadow-sm border border-brand-orange/20 cursor-pointer disabled:opacity-50"
+                    title="Run live discovery across Google Places, Geoapify, and OpenStreetMap for real photos and places"
+                  >
+                    {isDiscoveringLive ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-brand-orange group-hover:text-white" />}
+                    <span>{isDiscoveringLive ? 'Scanning APIs...' : 'Discover More Live Places'}</span>
+                  </button>
+                )}
+              </div>
               <span className="text-[11px] text-brand-teal font-medium flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Verified live inventory & community estimates</span>
+                <span>Verified live inventory & real photos</span>
               </span>
             </div>
 
@@ -722,6 +765,7 @@ export const ExplorePage = () => {
               <MapView
                 venues={filteredVenues}
                 onSelectVenue={(v) => setSelectedVenue(v)}
+                destination={searchQuery}
               />
             ) : filteredVenues.length === 0 ? (
               /* Zero State */
@@ -730,18 +774,32 @@ export const ExplorePage = () => {
                   <Search className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-base text-brand-navy">No matching places found</h3>
-                  <p className="text-xs text-brand-navy/60 mt-1">
-                    Try broadening your budget slider or searching for a different destination.
+                  <h3 className="font-semibold text-base text-brand-navy">No indexed places found</h3>
+                  <p className="text-xs text-brand-navy/60 mt-1 max-w-md mx-auto">
+                    {searchQuery 
+                      ? `We haven't pre-cached places for "${searchQuery}". Click below to trigger real-time discovery via Google Places, Geoapify & OpenStreetMap!`
+                      : 'Try broadening your budget slider or searching for a destination like Pondicherry, Coorg, Gokarna, Manali or Goa.'}
                   </p>
                 </div>
-                <button
-                  onClick={handleResetFilters}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold bg-brand-navy text-white hover:bg-brand-navy-light shadow-sm"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset All Filters</span>
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {searchQuery && (
+                    <button
+                      onClick={handleLiveDiscover}
+                      disabled={isDiscoveringLive}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold bg-brand-orange text-white hover:bg-brand-orange-hover shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isDiscoveringLive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      <span>{isDiscoveringLive ? 'Querying APIs...' : `Auto-Discover ${searchQuery} via Live APIs`}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleResetFilters}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold bg-brand-navy text-white hover:bg-brand-navy-light shadow-sm cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset All Filters</span>
+                  </button>
+                </div>
               </div>
             ) : (
               /* Grid View with guestCount passed to VenueCard */

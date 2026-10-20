@@ -68,6 +68,21 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
               {venue.badge}
             </span>
           )}
+          {venue.wikiVerified && (
+            <span className="bg-emerald-600/95 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md">
+              ✓ Real Photo
+            </span>
+          )}
+          {venue.sourceProvider === 'google_places' && (
+            <span className="bg-blue-600/95 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md">
+              Google Places
+            </span>
+          )}
+          {venue.sourceProvider === 'geoapify' && (
+            <span className="bg-purple-600/95 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md">
+              Geoapify
+            </span>
+          )}
           {venue.priceType === 'verified' ? (
             <Badge type="verified" text="Verified" />
           ) : (

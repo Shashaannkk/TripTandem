@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
  * - Custom price-badged hotel pins
  * - Interactive selected hotel drawer / popup
  */
-export const MapView = ({ venues = [], onSelectVenue }) => {
+export const MapView = ({ venues = [], onSelectVenue, destination }) => {
   const { formatPrice } = useAuth();
   const [selectedPin, setSelectedPin] = useState(null);
   const [mapMode, setMapMode] = useState('satellite'); // 'satellite' | 'streets'
@@ -57,8 +57,15 @@ export const MapView = ({ venues = [], onSelectVenue }) => {
 
     const L = window.L;
 
-    // Center map around first venue or default to India center (Goa/Central)
-    const validVenues = venues.filter(v => v.lat && v.lng);
+    // Safely extract coordinates from venues (supporting flat lat/lng or nested coordinates)
+    const validVenues = venues
+      .map((v) => {
+        const lat = v.lat != null ? Number(v.lat) : v.coordinates?.lat != null ? Number(v.coordinates.lat) : null;
+        const lng = v.lng != null ? Number(v.lng) : v.coordinates?.lng != null ? Number(v.coordinates.lng) : null;
+        return { ...v, lat, lng };
+      })
+      .filter((v) => v.lat != null && !isNaN(v.lat) && v.lng != null && !isNaN(v.lng) && v.lat !== 0);
+
     const initialLat = validVenues[0]?.lat || 15.598;
     const initialLng = validVenues[0]?.lng || 73.743;
 
@@ -101,14 +108,22 @@ export const MapView = ({ venues = [], onSelectVenue }) => {
     }
 
     // Clear old markers
-    markersRef.current.forEach(m => map.removeLayer(m));
+    markersRef.current.forEach((m) => map.removeLayer(m));
     markersRef.current = [];
 
-    // Add custom hotel price markers
+    // Add custom hotel & POI markers
     const bounds = [];
 
     validVenues.forEach((venue) => {
-      const priceText = formatPrice(venue.price);
+      let priceText = formatPrice(venue.price);
+      if (!venue.price) {
+        if (venue.category === 'attraction' || venue.type === 'attraction') priceText = '🏛️ Sight';
+        else if (venue.category === 'restaurant' || venue.type === 'restaurant' || venue.category === 'food') priceText = '🍽️ Food';
+        else if (venue.category === 'cafe') priceText = '☕ Cafe';
+        else if (venue.rating) priceText = `★ ${venue.rating}`;
+        else priceText = '📍 Spot';
+      }
+
       const isSelected = selectedPin?.id === venue.id;
 
       const markerHtml = `
@@ -127,14 +142,15 @@ export const MapView = ({ venues = [], onSelectVenue }) => {
       const customIcon = L.divIcon({
         html: markerHtml,
         className: 'custom-hotel-pin',
-        iconSize: [80, 32],
-        iconAnchor: [40, 16],
+        iconSize: [88, 32],
+        iconAnchor: [44, 16],
       });
 
       const marker = L.marker([venue.lat, venue.lng], { icon: customIcon })
         .addTo(map)
         .on('click', () => {
           setSelectedPin(venue);
+          onSelectVenue?.(venue);
           map.panTo([venue.lat, venue.lng], { animate: true });
         });
 

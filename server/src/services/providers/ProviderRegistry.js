@@ -54,6 +54,89 @@ export class ProviderRegistry {
   }
 
   /**
+   * Real-time Multi-Provider Discovery & Enrichment Pipeline
+   * Discovers places across Google Places, Geoapify, and OpenStreetMap,
+   * enriches them with authentic photos and coordinates, and seamlessly
+   * incorporates them into the active venue catalog.
+   */
+  async discoverAndEnrich({ destination = 'Goa', categories = ['hotel', 'restaurant', 'attraction'], limit = 6 }) {
+    const newlyAdded = [];
+    const catList = Array.isArray(categories) ? categories : [categories];
+
+    for (const cat of catList) {
+      let foundForCat = [];
+
+      // 1. Primary: Google Places API (New) if configured
+      if (this.adapters.google_places.isConfigured()) {
+        try {
+          const gPlaces = await this.adapters.google_places.searchPlaces({
+            destination,
+            category: cat,
+            limit,
+          });
+          if (gPlaces && gPlaces.length > 0) {
+            foundForCat.push(...gPlaces);
+          }
+        } catch (gErr) {
+          console.warn('Google Places discovery notice:', gErr.message);
+        }
+      }
+
+      // 2. Secondary: Geoapify Places API if configured
+      if (foundForCat.length < limit && this.adapters.geoapify.isConfigured()) {
+        try {
+          const geoPlaces = await this.adapters.geoapify.searchPlaces({
+            destination,
+            category: cat,
+            limit,
+          });
+          if (geoPlaces && geoPlaces.length > 0) {
+            foundForCat.push(...geoPlaces);
+          }
+        } catch (geoErr) {
+          console.warn('Geoapify discovery notice:', geoErr.message);
+        }
+      }
+
+      // 3. Fallback: OpenStreetMap Overpass (Always configured)
+      if (foundForCat.length < 2) {
+        try {
+          const osmPlaces = await this.adapters.openstreetmap.searchPlaces({
+            destination,
+            category: cat,
+            limit: 4,
+          });
+          if (osmPlaces && osmPlaces.length > 0) {
+            foundForCat.push(...osmPlaces);
+          }
+        } catch (osmErr) {
+          console.warn('OSM discovery notice:', osmErr.message);
+        }
+      }
+
+      // Safely import and deduplicate into active store
+      for (const cand of foundForCat) {
+        try {
+          const isDup = store.venues.some((v) => VenueModel.isDuplicate(v, cand));
+          if (!isDup) {
+            store.venues.push(cand);
+            newlyAdded.push(cand);
+          }
+        } catch (err) {
+          // Continue
+        }
+      }
+    }
+
+    return {
+      success: true,
+      destination,
+      discoveredCount: newlyAdded.length,
+      venues: newlyAdded,
+    };
+  }
+
+  /**
    * Safe Admin Import of venues into the persistent store with deduplication
    */
   importVenues(venuesToImport = []) {

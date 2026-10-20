@@ -264,6 +264,36 @@ export const api = {
     }
   },
 
+  async discoverPlaces({ destination, categories = ['hotel', 'restaurant', 'attraction'], limit = 6 }) {
+    try {
+      const res = await fetch(`${BASE_URL}/venues/discover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination, categories, limit }),
+      });
+      const data = await safeJson(res);
+      if (data && data.success) {
+        return data.data;
+      }
+    } catch (err) {
+      console.warn('Live places discovery notice:', err);
+    }
+    return null;
+  },
+
+  async getGeocode(destination = 'Goa') {
+    try {
+      const res = await fetch(`${BASE_URL}/venues/geocode?destination=${encodeURIComponent(destination)}`);
+      const data = await safeJson(res);
+      if (data && data.success) {
+        return data.data;
+      }
+    } catch (err) {
+      console.warn('Geocode fetch notice:', err);
+    }
+    return null;
+  },
+
   // Trips
   async getTrips() {
     try {
