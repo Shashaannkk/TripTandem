@@ -9,15 +9,17 @@ import { AiConciergeDrawer } from '../components/trip/AiConciergeDrawer';
 import { InviteModal } from '../components/trip/InviteModal';
 import { AddActivityModal } from '../components/trip/AddActivityModal';
 import { ContestedSlotDuelModal } from '../components/trip/ContestedSlotDuelModal';
+import { SessionAnalyticsModal } from '../components/trip/SessionAnalyticsModal';
 import { useTrip } from '../context/TripContext';
 import { api } from '../services/api';
-import { Calendar, Wallet, Sparkles, MessageSquare, Info } from 'lucide-react';
+import { Calendar, Wallet, Sparkles, MessageSquare, Info, BarChart3 } from 'lucide-react';
 
 export const TripWorkspacePage = () => {
   const { tripId } = useParams();
   const { trip, setTrip, isChatOpen, isAiConciergeOpen, conflicts } = useTrip();
   const [workspaceTab, setWorkspaceTab] = useState('itinerary'); // 'itinerary' | 'budget'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
   const [targetDayForAdd, setTargetDayForAdd] = useState(1);
 
   useEffect(() => {
@@ -79,6 +81,18 @@ export const TripWorkspacePage = () => {
               )}
             </button>
 
+            <button
+              onClick={() => setIsAnalyticsModalOpen(true)}
+              className="py-4 text-sm font-semibold transition-all relative flex items-center gap-2 text-brand-navy/60 hover:text-brand-navy cursor-pointer ml-auto"
+              title="View live event-driven session collaboration metrics & zero-sum budget reconciliation"
+            >
+              <BarChart3 className="w-4 h-4 text-brand-teal" />
+              <span className="hidden sm:inline">Session Analytics</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal border border-brand-teal/30">
+                Audit
+              </span>
+            </button>
+
           </div>
         </div>
       </div>
@@ -109,6 +123,12 @@ export const TripWorkspacePage = () => {
         defaultDayNumber={targetDayForAdd}
       />
       <ContestedSlotDuelModal />
+      {isAnalyticsModalOpen && trip && (
+        <SessionAnalyticsModal
+          trip={trip}
+          onClose={() => setIsAnalyticsModalOpen(false)}
+        />
+      )}
 
     </div>
   );

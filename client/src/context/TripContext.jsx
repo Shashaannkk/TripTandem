@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import { INITIAL_TRIP } from '../data/mockData';
 import { useAuth } from './AuthContext';
 import { api } from '../services/api';
+import { BudgetEngine } from '../utils/budgetEngine';
 
 const TripContext = createContext();
 
@@ -44,10 +45,15 @@ export const TripProvider = ({ children }) => {
       socketTarget = 'http://localhost:3001';
     }
 
+    const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
+
     const newSocket = io(socketTarget || undefined, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnectionAttempts: 5,
+      auth: {
+        token: token || undefined,
+      },
     });
 
     setSocket(newSocket);
@@ -373,8 +379,31 @@ export const TripProvider = ({ children }) => {
       }
     }, 4000);
 
+    const handleBoardUpdated = ({ itemId, item, trip: updatedTrip, updatedBy }) => {
+      if (updatedTrip) {
+        setTrip(updatedTrip);
+      }
+      if (updatedBy?.id !== currentUser?.id) {
+        showToast(`🔄 ${updatedBy?.name || 'A collaborator'} moved "${item?.title || 'an activity'}"`, 'info');
+      }
+    };
+
+    const handleBoardConflict = (data) => {
+      showToast(`⚠️ Conflict: Activity was modified by another collaborator. Reconciling...`, 'error');
+      if (data?.authoritativeTrip) {
+        setTrip(data.authoritativeTrip);
+      }
+    };
+
+    const handleTripError = (err) => {
+      showToast(`⚠️ ${err.message || 'Operation forbidden'}`, 'error');
+    };
+
     socket.on('presence_sync', handlePresence);
     socket.on('itinerary_synced', handleItinerarySynced);
+    socket.on('trip.board.updated', handleBoardUpdated);
+    socket.on('trip.board.conflict', handleBoardConflict);
+    socket.on('trip.error', handleTripError);
     socket.on('vote_recorded', handleVoteRecorded);
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleTyping);
@@ -393,6 +422,9 @@ export const TripProvider = ({ children }) => {
       clearInterval(pingInterval);
       socket.off('presence_sync', handlePresence);
       socket.off('itinerary_synced', handleItinerarySynced);
+      socket.off('trip.board.updated', handleBoardUpdated);
+      socket.off('trip.board.conflict', handleBoardConflict);
+      socket.off('trip.error', handleTripError);
       socket.off('vote_recorded', handleVoteRecorded);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleTyping);
@@ -592,6 +624,103 @@ export const TripProvider = ({ children }) => {
     });
   };
 
+  const reorderActivity = ({ itemId, dayNumber, targetIndex, positionVersion }) => {
+    let currentVersion = positionVersion;
+    let targetDayNumber = dayNumber;
+
+    setTrip(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const day = next.days.find(d => d.dayNumber === dayNumber);
+      if (!day || !day.items) return prev;
+
+      const currentIndex = day.items.findIndex(i => i.id === itemId);
+      if (currentIndex === -1 || targetIndex < 0 || targetIndex >= day.items.length) return prev;
+
+      const [moved] = day.items.splice(currentIndex, 1);
+      currentVersion = currentVersion ?? moved.positionVersion ?? 1;
+      moved.positionVersion = (moved.positionVersion || 1) + 1;
+      day.items.splice(targetIndex, 0, moved);
+
+      return next;
+    });
+
+    if (socket) {
+      socket.emit(
+        'trip.board.update',
+        {
+          tripId: trip.id,
+          itemId,
+          dayNumber: targetDayNumber,
+          dayIndex: targetDayNumber - 1,
+          positionVersion: currentVersion ?? 1,
+        },
+        (ack) => {
+          if (ack && !ack.success && ack.conflict) {
+            showToast('⚠️ Concurrent edit conflict: Activity was modified by another collaborator.', 'error');
+            if (ack.authoritativeTrip) {
+              setTrip(ack.authoritativeTrip);
+            }
+          }
+        }
+      );
+    }
+  };
+
+  const moveActivityToDay = ({ itemId, fromDayNumber, toDayNumber, targetIndex = 0, positionVersion }) => {
+    if (fromDayNumber === toDayNumber) {
+      reorderActivity({ itemId, dayNumber: fromDayNumber, targetIndex, positionVersion });
+      return;
+    }
+
+    let currentVersion = positionVersion;
+    let movedItemTitle = '';
+
+    setTrip(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const fromDay = next.days.find(d => d.dayNumber === fromDayNumber);
+      const toDay = next.days.find(d => d.dayNumber === toDayNumber);
+      if (!fromDay || !toDay) return prev;
+
+      const idx = fromDay.items.findIndex(i => i.id === itemId);
+      if (idx === -1) return prev;
+
+      const [moved] = fromDay.items.splice(idx, 1);
+      movedItemTitle = moved.title;
+      currentVersion = currentVersion ?? moved.positionVersion ?? 1;
+      moved.dayNumber = toDayNumber;
+      moved.positionVersion = (moved.positionVersion || 1) + 1;
+
+      if (!toDay.items) toDay.items = [];
+      const clampedIdx = Math.max(0, Math.min(targetIndex, toDay.items.length));
+      toDay.items.splice(clampedIdx, 0, moved);
+
+      return next;
+    });
+
+    showToast(`Moved "${movedItemTitle || 'Activity'}" to Day ${toDayNumber}`, 'info');
+
+    if (socket) {
+      socket.emit(
+        'trip.board.update',
+        {
+          tripId: trip.id,
+          itemId,
+          dayNumber: toDayNumber,
+          dayIndex: toDayNumber - 1,
+          positionVersion: currentVersion ?? 1,
+        },
+        (ack) => {
+          if (ack && !ack.success && ack.conflict) {
+            showToast('⚠️ Concurrent edit conflict: Activity was modified by another collaborator.', 'error');
+            if (ack.authoritativeTrip) {
+              setTrip(ack.authoritativeTrip);
+            }
+          }
+        }
+      );
+    }
+  };
+
   const reorderDayItems = (dayNumber, reorderedItems) => {
     setTrip(prev => {
       const next = JSON.parse(JSON.stringify(prev));
@@ -599,16 +728,30 @@ export const TripProvider = ({ children }) => {
       if (day) {
         day.items = reorderedItems;
       }
-      if (socket) {
-        socket.emit('itinerary_change', {
-          tripId: next.id,
-          trip: next,
-          changeDescription: `Reordered activities for Day ${dayNumber}`,
-          updatedBy: currentUser,
-        });
-      }
       return next;
     });
+
+    // Determine moved item and its version to sync via trip.board.update
+    const currentDay = trip?.days?.find(d => d.dayNumber === dayNumber);
+    const firstChanged = reorderedItems.find((item, idx) => currentDay?.items?.[idx]?.id !== item.id);
+    const targetIdx = firstChanged ? reorderedItems.findIndex(i => i.id === firstChanged.id) : 0;
+
+    if (firstChanged && socket) {
+      socket.emit('trip.board.update', {
+        tripId: trip.id,
+        itemId: firstChanged.id,
+        dayNumber,
+        dayIndex: dayNumber - 1,
+        positionVersion: firstChanged.positionVersion || 1,
+      });
+    } else if (socket) {
+      socket.emit('itinerary_change', {
+        tripId: trip.id,
+        trip: { ...trip, days: trip.days.map(d => d.dayNumber === dayNumber ? { ...d, items: reorderedItems } : d) },
+        changeDescription: `Reordered activities for Day ${dayNumber}`,
+        updatedBy: currentUser,
+      });
+    }
   };
 
   const addExpense = (expenseData) => {
@@ -620,7 +763,9 @@ export const TripProvider = ({ children }) => {
         category: expenseData.category || 'other',
         amount: Number(expenseData.amount) || 0,
         paidBy: expenseData.paidBy || currentUser.name,
+        splitMode: expenseData.splitMode || 'equal',
         splitWith: expenseData.splitWith || next.members.map(m => m.name),
+        splits: expenseData.splits || {},
         date: expenseData.date || new Date().toISOString().split('T')[0],
         type: expenseData.type || 'actual',
         receiptUrl: expenseData.receiptUrl || null,
@@ -1287,97 +1432,10 @@ export const TripProvider = ({ children }) => {
     return list;
   }, [trip]);
 
-  // Budget calculations
+  // Budget calculations with integer-paise zero-sum reconciliation
   const budgetSummary = useMemo(() => {
     if (!trip || !trip.budget) return null;
-    const { totalTarget, categories, expenses, splitMode } = trip.budget;
-    const memberCount = trip.members.length || 4;
-
-    const totalEstimated = Object.values(categories || {}).reduce((a, b) => a + b, 0);
-    const actualLogged = (expenses || []).reduce((a, b) => a + b.amount, 0);
-    const perPersonTarget = Math.round(totalTarget / memberCount);
-    const perPersonEstimated = Math.round(totalEstimated / memberCount);
-    const remaining = totalTarget - totalEstimated;
-
-    // Individual shares and balances
-    const memberBalances = trip.members.map(member => {
-      const paid = (expenses || [])
-        .filter(e => e.paidBy === member.name)
-        .reduce((sum, e) => sum + e.amount, 0);
-      const shareOwed = Math.round(actualLogged / memberCount);
-      const balance = paid - shareOwed; // positive = owed money, negative = owes group
-      return {
-        ...member,
-        paid,
-        shareOwed,
-        balance,
-      };
-    });
-
-    // Compute Who Pays Whom (Minimum Cash Flow Debt Settlement Algorithm)
-    const calculateOptimalSettlements = (membersList) => {
-      const debtors = [];
-      const creditors = [];
-
-      membersList.forEach(m => {
-        const bal = Math.round(m.balance);
-        if (bal < -1) {
-          debtors.push({ ...m, amountOwed: Math.abs(bal) });
-        } else if (bal > 1) {
-          creditors.push({ ...m, amountDue: bal });
-        }
-      });
-
-      debtors.sort((a, b) => b.amountOwed - a.amountOwed);
-      creditors.sort((a, b) => b.amountDue - a.amountDue);
-
-      const settlements = [];
-      let d = 0;
-      let c = 0;
-
-      while (d < debtors.length && c < creditors.length) {
-        const debtor = debtors[d];
-        const creditor = creditors[c];
-        const settleAmount = Math.min(debtor.amountOwed, creditor.amountDue);
-
-        if (settleAmount > 0) {
-          settlements.push({
-            id: `settle-${debtor.id}-${creditor.id}`,
-            from: debtor.name,
-            fromId: debtor.id,
-            fromAvatar: debtor.avatar,
-            to: creditor.name,
-            toId: creditor.id,
-            toAvatar: creditor.avatar,
-            amount: Math.round(settleAmount),
-            upi: `${creditor.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@okaxis`,
-          });
-
-          debtor.amountOwed -= settleAmount;
-          creditor.amountDue -= settleAmount;
-        }
-
-        if (debtor.amountOwed < 1) d++;
-        if (creditor.amountDue < 1) c++;
-      }
-
-      return settlements;
-    };
-
-    const optimalSettlements = calculateOptimalSettlements(memberBalances);
-
-    return {
-      totalTarget,
-      totalEstimated,
-      actualLogged,
-      remaining,
-      perPersonTarget,
-      perPersonEstimated,
-      categories,
-      splitMode,
-      memberBalances,
-      optimalSettlements,
-    };
+    return BudgetEngine.reconcileTripBudget(trip);
   }, [trip]);
 
   return (
@@ -1403,6 +1461,8 @@ export const TripProvider = ({ children }) => {
         updateActivity,
         removeActivity,
         reorderDayItems,
+        reorderActivity,
+        moveActivityToDay,
         addExpense,
         sendChatMessage,
         reactToMessage,

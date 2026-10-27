@@ -1,14 +1,23 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { store } from '../store.js';
+import { dataService } from '../services/dataService.js';
+import { BudgetEngine } from '../services/budgetService.js';
+import { AnalyticsService } from '../services/analyticsService.js';
+import { RecommendationService } from '../services/recommendationService.js';
+import {
+  authenticateToken,
+  optionalAuthToken,
+  requireTripMember,
+} from '../middleware/auth.js';
 
 const router = express.Router();
 
 // GET /api/trips - list trips
-router.get('/', (req, res) => {
+router.get('/', optionalAuthToken, async (req, res) => {
+  const allTrips = await dataService.listTrips();
   res.json({
     success: true,
-    data: store.trips.map(t => ({
+    data: allTrips.map(t => ({
       id: t.id,
       title: t.title,
       destination: t.destination,
@@ -16,23 +25,45 @@ router.get('/', (req, res) => {
       startDate: t.startDate,
       endDate: t.endDate,
       daysCount: t.daysCount,
-      membersCount: t.members.length,
-      budgetTotal: t.budget.totalTarget,
+      membersCount: (t.members || []).length,
+      budgetTotal: t.budget?.totalTarget || 30000,
     })),
   });
 });
 
 // POST /api/trips - create new trip
-router.post('/', (req, res) => {
+router.post('/', optionalAuthToken, async (req, res) => {
   const { title, destination, startDate, endDate, daysCount, budgetTotal, createdBy } = req.body;
+  const creator = req.user
+    ? {
+        id: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        role: 'Leader',
+        color: '#FF6B45',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      }
+    : (createdBy || {
+        id: 'user-1',
+        name: 'Alex Morgan',
+        role: 'Leader',
+        color: '#FF6B45',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      });
+
+  const tripId = `trip-${uuidv4().slice(0, 8)}`;
+  const cleanDestination = destination || 'Goa, India';
+
   const newTrip = {
-    id: `trip-${uuidv4().slice(0, 8)}`,
-    title: title || `${destination} Adventure`,
-    destination: destination || 'Goa, India',
+    id: tripId,
+    title: title || `${cleanDestination.split(',')[0]} Adventure`,
+    destination: cleanDestination,
     coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200&auto=format&fit=crop&q=80',
     startDate: startDate || '2026-11-20',
     endDate: endDate || '2026-11-23',
-    daysCount: daysCount || 3,
+    daysCount: Number(daysCount) || 3,
+    leaderUserId: creator.id,
+    isRoomLocked: false,
     budget: {
       totalTarget: Number(budgetTotal) || 30000,
       currency: 'INR',
@@ -46,9 +77,8 @@ router.post('/', (req, res) => {
       },
       expenses: [],
     },
-    members: [
-      createdBy || store.users[0],
-    ],
+    members: [{ ...creator, role: 'Leader' }],
+    participantIds: [creator.id],
     inviteCode: `TANDEM-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
     days: Array.from({ length: Number(daysCount) || 3 }, (_, i) => ({
       dayNumber: i + 1,
@@ -59,25 +89,38 @@ router.post('/', (req, res) => {
     chat: [
       {
         id: `msg-${uuidv4()}`,
+        tripId,
         senderId: 'system',
         senderName: 'TripTandem Assistant',
         senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        text: `Trip "${title || destination}" created! Invite friends to start collaborating in real time.`,
+        text: `Trip "${title || cleanDestination}" created! Invite friends to start collaborating in real time.`,
         timestamp: 'Just now',
-      }
+        isSystem: true,
+      },
     ],
   };
 
-  store.trips.push(newTrip);
-  res.status(201).json({ success: true, data: newTrip });
+  const created = await dataService.createTrip(newTrip);
+
+  // Record trip.created event
+  await dataService.recordEvent({
+    tripId: created.id,
+    type: 'trip.created',
+    actorId: creator.id,
+    metadata: { title: created.title, destination: created.destination },
+  });
+
+  res.status(201).json({ success: true, data: created });
 });
 
 // GET /api/trips/code/:inviteCode - look up trip by invite code
-router.get('/code/:inviteCode', (req, res) => {
-  const code = (req.params.inviteCode || '').trim().toUpperCase();
-  const trip = store.trips.find(t => (t.inviteCode || '').toUpperCase() === code || t.id.toUpperCase() === code);
+router.get('/code/:inviteCode', async (req, res) => {
+  const trip = await dataService.getTripByInviteCode(req.params.inviteCode);
   if (!trip) {
-    return res.status(404).json({ success: false, message: `No active trip found for invite code "${code}"` });
+    return res.status(404).json({
+      success: false,
+      message: `No active trip found for invite code "${req.params.inviteCode}"`,
+    });
   }
   res.json({
     success: true,
@@ -97,373 +140,515 @@ router.get('/code/:inviteCode', (req, res) => {
   });
 });
 
-// POST /api/trips/join-by-code - real participant joins trip with invite code
-router.post('/join-by-code', (req, res) => {
+// POST /api/trips/join-by-code - participant joins trip with invite code
+router.post('/join-by-code', optionalAuthToken, async (req, res) => {
   const { inviteCode, user, role = 'Planner' } = req.body;
   if (!inviteCode || !inviteCode.trim()) {
     return res.status(400).json({ success: false, message: 'Invite code is required' });
   }
-  if (!user || (!user.id && !user.name)) {
+
+  const cleanCode = inviteCode.trim().toUpperCase();
+  let trip = await dataService.getTripByInviteCode(cleanCode);
+
+  if (!trip) {
+    return res.status(404).json({ success: false, message: `Trip not found for invite code ${cleanCode}` });
+  }
+
+  const effectiveUser = req.user || user;
+  if (!effectiveUser || (!effectiveUser.id && !effectiveUser.name)) {
     return res.status(400).json({ success: false, message: 'Valid user object required to join' });
   }
 
-  const cleanCode = inviteCode.trim().toUpperCase();
-  let trip = store.trips.find(t => (t.inviteCode || '').toUpperCase() === cleanCode || t.id.toUpperCase() === cleanCode);
-  if (!trip && cleanCode.includes('GOA')) {
-    trip = store.trips.find(t => t.id === 'trip-goa-2026') || store.trips[0];
-  }
-
-  // If not found in memory, create a dynamic trip room for that invite code so friends never hit a dead end
-  if (!trip) {
-    const isManali = cleanCode.includes('MAN');
-    const isJaipur = cleanCode.includes('JAI');
-    const isKerala = cleanCode.includes('KER');
-    const isUdaipur = cleanCode.includes('UDA');
-    const destName = isManali ? 'Manali, Himachal Pradesh' : isJaipur ? 'Jaipur, Rajasthan' : isKerala ? 'Kerala, India' : isUdaipur ? 'Udaipur, Rajasthan' : 'Goa, India';
-
-    trip = {
-      id: `trip-${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-      title: `${destName.split(',')[0]} Crew Escape`,
-      destination: destName,
-      coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200&auto=format&fit=crop&q=80',
-      startDate: '2026-11-20',
-      endDate: '2026-11-23',
-      daysCount: 3,
-      leaderUserId: user.id || 'lead',
-      status: 'drafting',
-      participantIds: [],
-      budget: {
-        totalTarget: 36000,
-        currency: 'INR',
-        splitMode: 'equal',
-        categories: { accommodation: 16200, food: 9000, transport: 5400, activities: 3600, other: 1800 },
-        expenses: [],
-      },
-      members: [],
-      inviteCode: cleanCode,
-      days: [
-        { dayNumber: 1, dateFormatted: 'Day 1', theme: 'Arrival & Welcome', items: [] },
-        { dayNumber: 2, dateFormatted: 'Day 2', theme: 'Explore & Activities', items: [] },
-        { dayNumber: 3, dateFormatted: 'Day 3', theme: 'Farewell & Departure', items: [] },
-      ],
-      chat: [],
-    };
-    store.trips.push(trip);
-  }
-
-  // Check if user is already a member
-  const memberIdx = (trip.members || []).findIndex(
-    m => m.id === user.id || (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase())
-  );
-
   const newMemberObj = {
-    id: user.id || `user-${uuidv4().slice(0, 8)}`,
-    name: user.name || 'Traveler',
-    email: user.email || `${(user.name || 'user').toLowerCase().replace(/\s+/g, '.')}@triptandem.travel`,
-    role: role || user.role || 'Planner', // 'Leader' | 'Planner' | 'Viewer'
-    avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    color: user.color || '#FF6B45',
-    upiId: user.upiId || `${(user.name || 'user').toLowerCase().replace(/\s+/g, '')}@upi`,
-    upiQrCode: user.upiQrCode || null,
+    id: effectiveUser.id || `user-${uuidv4().slice(0, 8)}`,
+    name: effectiveUser.name || 'Traveler',
+    email: effectiveUser.email || '',
+    role: role || effectiveUser.role || 'Planner',
+    avatar: effectiveUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    color: effectiveUser.color || '#FF6B45',
+    upiId: effectiveUser.upiId || '',
     status: 'online',
     joinedAt: new Date().toISOString(),
   };
 
-  let joinMessage = null;
+  const updatedTrip = await dataService.addMemberToTrip(trip.id, newMemberObj);
 
-  if (memberIdx === -1) {
-    if (!trip.members) trip.members = [];
-    trip.members.push(newMemberObj);
+  // Record trip.member.joined event
+  await dataService.recordEvent({
+    tripId: trip.id,
+    type: 'trip.member.joined',
+    actorId: newMemberObj.id,
+    metadata: { name: newMemberObj.name, role: newMemberObj.role },
+  });
 
-    if (!trip.participantIds) trip.participantIds = [];
-    if (!trip.participantIds.includes(newMemberObj.id)) {
-      trip.participantIds.push(newMemberObj.id);
-    }
-
-    // Add notification into group chat
-    if (!trip.chat) trip.chat = [];
-    joinMessage = {
-      id: `msg-${uuidv4()}`,
-      tripId: trip.id,
-      senderId: 'system',
-      senderName: 'Trip Concierge',
-      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      text: `${newMemberObj.name} joined the trip room as ${newMemberObj.role}! 🎉 Let's collaborate.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isSystem: true,
-    };
-    trip.chat.push(joinMessage);
-  } else {
-    // Update existing member status
-    trip.members[memberIdx] = { ...trip.members[memberIdx], ...newMemberObj, status: 'online' };
-  }
-
-  // Broadcast real-time event to connected sockets in this trip
   const io = req.app.get('io');
   if (io) {
-    io.to(`trip_${trip.id}`).emit('member_joined', { trip, newMember: newMemberObj });
-    if (joinMessage) {
-      io.to(`trip_${trip.id}`).emit('new_message', { message: joinMessage });
-    }
-    io.to(`trip_${trip.id}`).emit('itinerary_synced', {
-      trip,
-      changeDescription: `${newMemberObj.name} joined the trip room`,
-      updatedBy: newMemberObj,
-    });
+    io.to(`trip_${trip.id}`).emit('member_joined', { trip: updatedTrip, newMember: newMemberObj });
   }
 
   res.json({
     success: true,
     message: `Joined trip "${trip.title}" as ${newMemberObj.name}`,
-    data: trip,
+    data: updatedTrip,
     member: newMemberObj,
   });
 });
 
-// POST /api/trips/:id/join - join existing trip by ID
-router.post('/:id/join', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  const { user, role = 'Planner' } = req.body;
-  if (!user || (!user.id && !user.name)) {
-    return res.status(400).json({ success: false, message: 'Valid user object required' });
-  }
-
-  const existingIdx = (trip.members || []).findIndex(
-    m => m.id === user.id || (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase())
-  );
-
-  const memberObj = {
-    id: user.id || `user-${uuidv4().slice(0, 8)}`,
-    name: user.name || 'Traveler',
-    email: user.email || '',
-    role: role || user.role || 'Planner',
-    avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    color: user.color || '#2A9D8F',
-    upiId: user.upiId || '',
-    upiQrCode: user.upiQrCode || null,
-    status: 'online',
-    joinedAt: new Date().toISOString(),
-  };
-
-  if (existingIdx === -1) {
-    if (!trip.members) trip.members = [];
-    trip.members.push(memberObj);
-    if (!trip.participantIds) trip.participantIds = [];
-    if (!trip.participantIds.includes(memberObj.id)) trip.participantIds.push(memberObj.id);
-
-    const joinMsg = {
-      id: `msg-${uuidv4()}`,
-      tripId: trip.id,
-      senderId: 'system',
-      senderName: 'Trip Concierge',
-      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      text: `${memberObj.name} joined the trip room as ${memberObj.role}! 👋`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isSystem: true,
-    };
-    trip.chat.push(joinMsg);
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`trip_${trip.id}`).emit('member_joined', { trip, newMember: memberObj });
-      io.to(`trip_${trip.id}`).emit('new_message', { message: joinMsg });
-    }
-  } else {
-    trip.members[existingIdx] = { ...trip.members[existingIdx], ...memberObj };
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`trip_${trip.id}`).emit('member_joined', { trip, newMember: trip.members[existingIdx] });
-    }
-  }
-
-  res.json({ success: true, data: trip, member: memberObj });
-});
-
-// PATCH /api/trips/:id/members/:memberId/role - Trip Leader updates member role (Planner vs Viewer)
-router.patch('/:id/members/:memberId/role', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  const { role } = req.body;
-  if (!['Leader', 'Planner', 'Viewer', 'Admin'].includes(role)) {
-    return res.status(400).json({ success: false, message: 'Invalid role. Choose from Leader, Planner, Viewer, Admin' });
-  }
-
-  const member = (trip.members || []).find(m => m.id === req.params.memberId);
-  if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
-
-  member.role = role;
-  res.json({ success: true, data: member, trip });
-});
-
-// DELETE /api/trips/:id/members/:memberId - Trip Leader removes member
-router.delete('/:id/members/:memberId', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  const idx = (trip.members || []).findIndex(m => m.id === req.params.memberId);
-  if (idx === -1) return res.status(404).json({ success: false, message: 'Member not found' });
-
-  const removed = trip.members.splice(idx, 1)[0];
-  if (trip.participantIds) {
-    trip.participantIds = trip.participantIds.filter(id => id !== req.params.memberId);
-  }
-
-  res.json({ success: true, message: `Removed ${removed.name} from trip`, trip });
-});
-
-// GET /api/trips/:id
-router.get('/:id', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
+// GET /api/trips/:id - get trip details
+router.get('/:id', optionalAuthToken, async (req, res) => {
+  const trip = await dataService.getTripById(req.params.id);
   if (!trip) {
     return res.status(404).json({ success: false, message: 'Trip not found' });
   }
   res.json({ success: true, data: trip });
 });
 
+// POST /api/trips/:id/lock - Leader locks/unlocks room workspace (PRD Section 6.1)
+router.post('/:id/lock', authenticateToken, requireTripMember(['Leader', 'Admin']), async (req, res) => {
+  const { isLocked = true } = req.body;
+  const trip = await dataService.updateTrip(req.params.id, { isRoomLocked: Boolean(isLocked) });
+
+  await dataService.recordEvent({
+    tripId: req.params.id,
+    type: isLocked ? 'trip.locked' : 'trip.unlocked',
+    actorId: req.user.id,
+    metadata: { toggledBy: req.user.name, isLocked },
+  });
+
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`trip_${req.params.id}`).emit('trip.room.lock_updated', {
+      tripId: req.params.id,
+      isRoomLocked: Boolean(isLocked),
+      toggledBy: req.user,
+    });
+  }
+
+  res.json({ success: true, isRoomLocked: Boolean(isLocked), trip });
+});
+
+// PATCH /api/trips/:id/members/:memberId/role - Leader updates member role
+router.patch(
+  '/:id/members/:memberId/role',
+  authenticateToken,
+  requireTripMember(['Leader', 'Admin']),
+  async (req, res) => {
+    const { role } = req.body;
+    if (!['Leader', 'Planner', 'Viewer', 'Admin'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be one of: Leader, Planner, Viewer, Admin',
+      });
+    }
+
+    const updatedTrip = await dataService.updateMemberRole(req.params.id, req.params.memberId, role);
+    if (!updatedTrip) {
+      return res.status(404).json({ success: false, message: 'Member or Trip not found' });
+    }
+
+    await dataService.recordEvent({
+      tripId: req.params.id,
+      type: 'trip.member.role_changed',
+      actorId: req.user.id,
+      metadata: { targetMemberId: req.params.memberId, newRole: role, updatedBy: req.user.name },
+    });
+
+    const member = (updatedTrip.members || []).find(m => m.id === req.params.memberId);
+    res.json({ success: true, data: member, trip: updatedTrip });
+  }
+);
+
+// DELETE /api/trips/:id/members/:memberId - Leader removes member
+router.delete(
+  '/:id/members/:memberId',
+  authenticateToken,
+  requireTripMember(['Leader', 'Admin']),
+  async (req, res) => {
+    const updatedTrip = await dataService.removeMemberFromTrip(req.params.id, req.params.memberId);
+    if (!updatedTrip) {
+      return res.status(404).json({ success: false, message: 'Trip not found' });
+    }
+
+    await dataService.recordEvent({
+      tripId: req.params.id,
+      type: 'trip.member.removed',
+      actorId: req.user.id,
+      metadata: { removedMemberId: req.params.memberId, removedBy: req.user.name },
+    });
+
+    res.json({ success: true, message: 'Member removed from trip', trip: updatedTrip });
+  }
+);
+
 // POST /api/trips/:id/items - add itinerary activity
-router.post('/:id/items', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
+router.post(
+  '/:id/items',
+  authenticateToken,
+  requireTripMember(['Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const { dayNumber = 1, ...itemData } = req.body;
 
-  const { dayNumber, timeSlot, title, venueId, venueName, costPerPerson, location, image, notes, startTime, duration } = req.body;
-  const day = trip.days.find(d => d.dayNumber === Number(dayNumber));
-  if (!day) return res.status(404).json({ success: false, message: 'Day not found' });
-
-  const newItem = {
-    id: `item-${uuidv4().slice(0, 8)}`,
-    timeSlot: timeSlot || 'afternoon',
-    startTime: startTime || '02:00 PM',
-    duration: duration || '2h',
-    title: title || 'New Activity',
-    venueId: venueId || null,
-    venueName: venueName || title,
-    category: req.body.category || 'experience',
-    image: image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
-    costPerPerson: Number(costPerPerson) || 0,
-    location: location || trip.destination,
-    source: req.body.source || 'user',
-    status: 'drafting', // drafting -> voting -> locked
-    votes: { up: [], down: [] },
-    notes: notes || '',
-  };
-
-  day.items.push(newItem);
-
-  // recalculate budget categories
-  if (newItem.costPerPerson > 0) {
-    const totalAdded = newItem.costPerPerson * (trip.members.length || 1);
-    const cat = newItem.category === 'stay' ? 'accommodation' : newItem.category === 'restaurant' ? 'food' : 'activities';
-    trip.budget.categories[cat] = (trip.budget.categories[cat] || 0) + totalAdded;
-  }
-
-  res.status(201).json({ success: true, data: newItem, trip });
-});
-
-// POST /api/trips/:id/items/:itemId/vote - vote on activity
-router.post('/:id/items/:itemId/vote', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  const { userId, voteType } = req.body; // 'up' or 'down'
-  let foundItem = null;
-
-  for (const day of trip.days) {
-    const item = day.items.find(i => i.id === req.params.itemId);
-    if (item) {
-      foundItem = item;
-      break;
+    const result = await dataService.addItemToTrip(req.params.id, dayNumber, itemData);
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Trip or Day not found' });
     }
+
+    await dataService.recordEvent({
+      tripId: req.params.id,
+      type: 'itinerary.item.created',
+      actorId: req.user.id,
+      metadata: { itemId: result.item.id, title: result.item.title, dayNumber },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${req.params.id}`).emit('itinerary_synced', {
+        trip: result.trip,
+        changeDescription: `Added activity "${result.item.title}"`,
+        updatedBy: req.user,
+      });
+    }
+
+    res.status(201).json({ success: true, data: result.item, trip: result.trip });
   }
+);
 
-  if (!foundItem) return res.status(404).json({ success: false, message: 'Item not found' });
+// PATCH /api/trips/:id/items/:itemId - edit or reorder activity with Optimistic Concurrency (positionVersion)
+router.patch(
+  '/:id/items/:itemId',
+  authenticateToken,
+  requireTripMember(['Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const result = await dataService.updateItemWithConcurrency(
+      req.params.id,
+      req.params.itemId,
+      req.body
+    );
 
-  // Toggle or cast vote
-  if (voteType === 'up') {
-    if (foundItem.votes.up.includes(userId)) {
-      foundItem.votes.up = foundItem.votes.up.filter(id => id !== userId);
+    if (!result.success) {
+      if (result.conflict) {
+        // Record conflict flagged event
+        await dataService.recordEvent({
+          tripId: req.params.id,
+          type: 'conflict.flagged',
+          actorId: req.user.id,
+          metadata: { itemId: req.params.itemId, serverVersion: result.currentServerVersion },
+        });
+
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          error: result.error,
+          currentServerVersion: result.currentServerVersion,
+          authoritativeItem: result.authoritativeItem,
+          trip: result.authoritativeTrip,
+        });
+      }
+      return res.status(404).json({ success: false, message: result.error });
+    }
+
+    const isReorder = req.body.dayNumber !== undefined || req.body.dayIndex !== undefined || req.body.order !== undefined;
+    await dataService.recordEvent({
+      tripId: req.params.id,
+      type: isReorder ? 'itinerary.item.reordered' : 'itinerary.item.updated',
+      actorId: req.user.id,
+      metadata: { itemId: req.params.itemId, newVersion: result.newVersion },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${req.params.id}`).emit('trip.board.updated', {
+        tripId: req.params.id,
+        itemId: req.params.itemId,
+        item: result.item,
+        trip: result.trip,
+        updatedBy: req.user,
+      });
+      io.to(`trip_${req.params.id}`).emit('itinerary_synced', {
+        trip: result.trip,
+        changeDescription: `Updated activity "${result.item.title}"`,
+        updatedBy: req.user,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.item,
+      trip: result.trip,
+      positionVersion: result.newVersion,
+    });
+  }
+);
+
+// POST /api/trips/:id/items/:itemId/vote - Consensus Up/Down vote on activity
+router.post(
+  '/:id/items/:itemId/vote',
+  authenticateToken,
+  requireTripMember(['Viewer', 'Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const { voteType = 'up' } = req.body;
+    const userId = req.user.id; // Trusted identity!
+
+    const trip = await dataService.getTripById(req.params.id);
+    if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
+
+    let foundItem = null;
+    let foundDay = null;
+
+    for (const day of trip.days || []) {
+      const it = (day.items || []).find(i => i.id === req.params.itemId);
+      if (it) {
+        foundItem = it;
+        foundDay = day;
+        break;
+      }
+    }
+
+    if (!foundItem) return res.status(404).json({ success: false, message: 'Activity not found' });
+
+    if (!foundItem.votes) foundItem.votes = { up: [], down: [] };
+    if (!Array.isArray(foundItem.votes.up)) foundItem.votes.up = [];
+    if (!Array.isArray(foundItem.votes.down)) foundItem.votes.down = [];
+
+    // Toggle vote
+    if (voteType === 'up') {
+      if (foundItem.votes.up.includes(userId)) {
+        foundItem.votes.up = foundItem.votes.up.filter(id => id !== userId);
+      } else {
+        foundItem.votes.up.push(userId);
+        foundItem.votes.down = foundItem.votes.down.filter(id => id !== userId);
+      }
+    } else if (voteType === 'down') {
+      if (foundItem.votes.down.includes(userId)) {
+        foundItem.votes.down = foundItem.votes.down.filter(id => id !== userId);
+      } else {
+        foundItem.votes.down.push(userId);
+        foundItem.votes.up = foundItem.votes.up.filter(id => id !== userId);
+      }
+    }
+
+    const previousStatus = foundItem.status;
+    const majorityThreshold = Math.ceil(((trip.members || []).length || 4) * 0.75);
+
+    if (foundItem.votes.up.length >= majorityThreshold) {
+      foundItem.status = 'locked';
+      foundItem.lifecycleStage = 'locked';
+    } else if (foundItem.votes.up.length > 0) {
+      foundItem.status = 'voting';
+      foundItem.lifecycleStage = 'voting';
     } else {
-      foundItem.votes.up.push(userId);
-      foundItem.votes.down = foundItem.votes.down.filter(id => id !== userId);
+      foundItem.status = 'drafting';
+      foundItem.lifecycleStage = 'drafting';
     }
-  } else if (voteType === 'down') {
-    if (foundItem.votes.down.includes(userId)) {
-      foundItem.votes.down = foundItem.votes.down.filter(id => id !== userId);
-    } else {
-      foundItem.votes.down.push(userId);
-      foundItem.votes.up = foundItem.votes.up.filter(id => id !== userId);
+
+    // Version increments when vote changes lifecycle state
+    foundItem.positionVersion = (foundItem.positionVersion || 1) + 1;
+
+    await dataService.updateTrip(trip.id, { days: trip.days });
+
+    await dataService.recordEvent({
+      tripId: trip.id,
+      type: 'vote.cast',
+      actorId: userId,
+      metadata: { itemId: foundItem.id, voteType, newStatus: foundItem.status },
+    });
+
+    if (previousStatus !== 'locked' && foundItem.status === 'locked') {
+      await dataService.recordEvent({
+        tripId: trip.id,
+        type: 'vote.resolved',
+        actorId: 'system',
+        metadata: { itemId: foundItem.id, consensusReached: true },
+      });
     }
-  }
 
-  // Update status based on votes
-  const majorityThreshold = Math.ceil((trip.members.length || 4) * 0.75); // e.g. 3 out of 4 votes
-  if (foundItem.votes.up.length >= majorityThreshold) {
-    foundItem.status = 'locked';
-  } else if (foundItem.votes.up.length > 0) {
-    foundItem.status = 'voting';
-  } else {
-    foundItem.status = 'drafting';
-  }
-
-  res.json({ success: true, data: foundItem, trip });
-});
-
-// PATCH /api/trips/:id/items/:itemId - edit item
-router.patch('/:id/items/:itemId', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  let foundItem = null;
-  for (const day of trip.days) {
-    const item = day.items.find(i => i.id === req.params.itemId);
-    if (item) {
-      Object.assign(item, req.body);
-      foundItem = item;
-      break;
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${trip.id}`).emit('vote_recorded', {
+        itemId: foundItem.id,
+        votes: foundItem.votes,
+        status: foundItem.status,
+        user: req.user,
+      });
     }
+
+    res.json({ success: true, data: foundItem, trip });
   }
+);
 
-  if (!foundItem) return res.status(404).json({ success: false, message: 'Item not found' });
-  res.json({ success: true, data: foundItem, trip });
-});
-
-// DELETE /api/trips/:id/items/:itemId - delete item
-router.delete('/:id/items/:itemId', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
-
-  for (const day of trip.days) {
-    const idx = day.items.findIndex(i => i.id === req.params.itemId);
-    if (idx !== -1) {
-      day.items.splice(idx, 1);
-      return res.json({ success: true, message: 'Item removed', trip });
+// DELETE /api/trips/:id/items/:itemId - Delete activity
+router.delete(
+  '/:id/items/:itemId',
+  authenticateToken,
+  requireTripMember(['Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const updatedTrip = await dataService.removeItemFromTrip(req.params.id, req.params.itemId);
+    if (!updatedTrip) {
+      return res.status(404).json({ success: false, message: 'Activity not found' });
     }
+
+    await dataService.recordEvent({
+      tripId: req.params.id,
+      type: 'itinerary.item.deleted',
+      actorId: req.user.id,
+      metadata: { itemId: req.params.itemId },
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${req.params.id}`).emit('itinerary_synced', {
+        trip: updatedTrip,
+        changeDescription: 'Activity removed',
+        updatedBy: req.user,
+      });
+    }
+
+    res.json({ success: true, message: 'Activity deleted', trip: updatedTrip });
   }
+);
 
-  res.status(404).json({ success: false, message: 'Item not found' });
-});
+// POST /api/trips/:id/budget/expenses - Add expense with Equal or Weighted split
+router.post(
+  '/:id/budget/expenses',
+  authenticateToken,
+  requireTripMember(['Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const trip = await dataService.getTripById(req.params.id);
+    if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
 
-// POST /api/trips/:id/budget/expenses - add expense
-router.post('/:id/budget/expenses', (req, res) => {
-  const trip = store.trips.find(t => t.id === req.params.id);
-  if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
+    const {
+      title,
+      category,
+      amount,
+      paidBy,
+      splitMode = 'equal',
+      splitWith,
+      splits = {},
+      type = 'actual',
+      receiptUrl,
+    } = req.body;
 
-  const { title, category, amount, paidBy, splitWith, type } = req.body;
-  const newExp = {
-    id: `exp-${uuidv4().slice(0, 8)}`,
-    title: title || 'Group Expense',
-    category: category || 'other',
-    amount: Number(amount) || 0,
-    paidBy: paidBy || 'Alex Morgan',
-    splitWith: splitWith || trip.members.map(m => m.name),
-    date: new Date().toISOString().split('T')[0],
-    type: type || 'actual',
-  };
+    const memberNames = (trip.members || []).map(m => m.name);
+    const resolvedParticipants = Array.isArray(splitWith) && splitWith.length > 0 ? splitWith : memberNames;
 
-  trip.budget.expenses.push(newExp);
-  res.status(201).json({ success: true, data: newExp, budget: trip.budget });
-});
+    if (resolvedParticipants.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Expense participant list (splitWith) must not be empty.',
+      });
+    }
+
+    const parsedAmount = Number(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Expense amount must be a positive number.',
+      });
+    }
+
+    // Validate splitting math via BudgetEngine
+    try {
+      BudgetEngine.calculateExpenseSharesInPaise({
+        amount: parsedAmount,
+        splitMode,
+        splitWith: resolvedParticipants,
+        splits,
+      });
+    } catch (mathErr) {
+      return res.status(422).json({
+        success: false,
+        message: `Budget validation error: ${mathErr.message}`,
+      });
+    }
+
+    const newExpense = {
+      id: `exp-${uuidv4().slice(0, 8)}`,
+      title: title || 'Group Expense',
+      category: category || 'other',
+      amount: parsedAmount,
+      paidBy: paidBy || req.user.name,
+      splitMode,
+      splitWith: resolvedParticipants,
+      splits,
+      date: new Date().toISOString().split('T')[0],
+      type,
+      receiptUrl: receiptUrl || null,
+    };
+
+    if (!trip.budget) trip.budget = { expenses: [] };
+    if (!trip.budget.expenses) trip.budget.expenses = [];
+    trip.budget.expenses.push(newExpense);
+
+    // Persist trip budget
+    await dataService.updateTrip(trip.id, { budget: trip.budget });
+
+    // Record budget.expense.created event
+    await dataService.recordEvent({
+      tripId: trip.id,
+      type: 'budget.expense.created',
+      actorId: req.user.id,
+      metadata: { expenseId: newExpense.id, amount: parsedAmount, title: newExpense.title },
+    });
+
+    const reconciledBudget = BudgetEngine.reconcileTripBudget(trip);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${trip.id}`).emit('budget_synced', {
+        budget: reconciledBudget,
+        expense: newExpense,
+        user: req.user,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: newExpense,
+      budget: reconciledBudget,
+    });
+  }
+);
+
+// GET /api/trips/:id/analytics - Real Event-Driven Session Analytics (Feature 4)
+router.get(
+  '/:id/analytics',
+  authenticateToken,
+  requireTripMember(['Viewer', 'Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const analytics = await AnalyticsService.calculateTripAnalytics(req.params.id);
+    if (!analytics) {
+      return res.status(404).json({ success: false, message: 'Trip not found' });
+    }
+    res.json({ success: true, data: analytics });
+  }
+);
+
+// GET /api/trips/:id/recommendations - Hybrid Group Recommender (Feature 5)
+router.get(
+  '/:id/recommendations',
+  authenticateToken,
+  requireTripMember(['Viewer', 'Planner', 'Leader', 'Admin']),
+  async (req, res) => {
+    const trip = await dataService.getTripById(req.params.id);
+    if (!trip) {
+      return res.status(404).json({ success: false, message: 'Trip not found' });
+    }
+
+    const { limit = 8, dietary, maxPrice } = req.query;
+    const recommendations = await RecommendationService.getRecommendationsForGroup(trip, {
+      limit: Number(limit) || 8,
+      dietaryTags: dietary ? String(dietary).split(',') : [],
+      maxPrice: maxPrice ? Number(maxPrice) : null,
+    });
+
+    res.json({
+      success: true,
+      data: recommendations,
+      tripId: trip.id,
+      destination: trip.destination,
+      count: recommendations.length,
+    });
+  }
+);
 
 export default router;

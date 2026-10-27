@@ -3,9 +3,28 @@ import { Sun, CloudSun, Plus, Calendar, Sparkles } from 'lucide-react';
 import { useTrip } from '../../context/TripContext';
 
 export const ItineraryDayTabs = () => {
-  const { trip, activeDayIndex, setActiveDayIndex, setTrip } = useTrip();
+  const { trip, activeDayIndex, setActiveDayIndex, setTrip, moveActivityToDay } = useTrip();
 
   if (!trip || !trip.days) return null;
+
+  const handleDayDrop = (e, targetDayNumber, idx) => {
+    e.preventDefault();
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const data = JSON.parse(dataStr);
+      if (data.dayNumber !== targetDayNumber) {
+        moveActivityToDay({
+          itemId: data.itemId,
+          fromDayNumber: data.dayNumber,
+          toDayNumber: targetDayNumber,
+          targetIndex: 0,
+          positionVersion: data.positionVersion,
+        });
+        setActiveDayIndex(idx);
+      }
+    } catch {}
+  };
 
   const handleAddDay = () => {
     const nextDayNum = trip.days.length + 1;
@@ -40,6 +59,11 @@ export const ItineraryDayTabs = () => {
               <button
                 key={day.dayNumber}
                 onClick={() => setActiveDayIndex(idx)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => handleDayDrop(e, day.dayNumber, idx)}
                 className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all flex-shrink-0 text-left border ${
                   isActive
                     ? 'bg-brand-sand border-brand-orange shadow-sm text-brand-navy'

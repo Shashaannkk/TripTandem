@@ -49,25 +49,63 @@ export const BudgetDashboard = () => {
   const [expensePaidBy, setExpensePaidBy] = useState(currentUser?.name || 'Alex Morgan');
   const [expenseType, setExpenseType] = useState('actual');
   const [expenseReceipt, setExpenseReceipt] = useState(null);
+  const [expenseSplitMode, setExpenseSplitMode] = useState('equal'); // 'equal' | 'weighted'
   const [selectedSplitMembers, setSelectedSplitMembers] = useState(
     trip?.members?.map(m => m.name) || []
   );
+  const [customWeights, setCustomWeights] = useState({});
+  const [splitValidationError, setSplitValidationError] = useState('');
 
   // Target Budget Form State
   const [newTargetBudget, setNewTargetBudget] = useState(trip?.budget?.totalTarget || 40000);
 
+  const handleToggleMember = (name) => {
+    let nextList;
+    if (selectedSplitMembers.includes(name)) {
+      if (selectedSplitMembers.length <= 1) {
+        setSplitValidationError('An expense must have at least one participating traveler.');
+        return;
+      }
+      nextList = selectedSplitMembers.filter(m => m !== name);
+    } else {
+      nextList = [...selectedSplitMembers, name];
+    }
+    setSelectedSplitMembers(nextList);
+    setSplitValidationError('');
+
+    const n = Math.max(nextList.length, 1);
+    const basePct = Math.floor(100 / n);
+    const rem = 100 % n;
+    const nextWeights = {};
+    nextList.forEach((mName, i) => {
+      nextWeights[mName] = basePct + (i < rem ? 1 : 0);
+    });
+    setCustomWeights(nextWeights);
+  };
+
+  const handleWeightChange = (name, val) => {
+    const num = Math.max(0, Math.min(100, Number(val) || 0));
+    setCustomWeights(prev => ({ ...prev, [name]: num }));
+    setSplitValidationError('');
+  };
+
+  const totalCustomWeight = selectedSplitMembers.reduce(
+    (sum, name) => sum + (Number(customWeights[name]) || 0),
+    0
+  );
+
   if (!budgetSummary) return null;
 
   const {
-    totalTarget,
-    totalEstimated,
-    actualLogged,
-    remaining,
-    perPersonTarget,
-    perPersonEstimated,
-    categories,
-    splitMode,
-    memberBalances,
+    totalTarget = 40000,
+    totalEstimated = 0,
+    actualLogged = 0,
+    remaining = 0,
+    perPersonTarget = 10000,
+    perPersonEstimated = 0,
+    categories = {},
+    splitMode = 'equal',
+    memberBalances = [],
     optimalSettlements = [],
   } = budgetSummary;
 
@@ -105,14 +143,34 @@ export const BudgetDashboard = () => {
 
   const handleCreateExpense = (e) => {
     e.preventDefault();
-    if (!expenseTitle || !expenseAmount) return;
+    if (!expenseTitle.trim()) {
+      setSplitValidationError('Please provide an expense description.');
+      return;
+    }
+    const numAmount = Number(expenseAmount);
+    if (!numAmount || numAmount <= 0) {
+      setSplitValidationError('Please provide an expense amount greater than 0.');
+      return;
+    }
+    if (selectedSplitMembers.length === 0) {
+      setSplitValidationError('Please select at least one traveler sharing this expense.');
+      return;
+    }
+    if (expenseSplitMode === 'weighted') {
+      if (totalCustomWeight !== 100) {
+        setSplitValidationError(`Custom weights must sum exactly to 100% (currently ${totalCustomWeight}%).`);
+        return;
+      }
+    }
 
     addExpense({
-      title: expenseTitle,
-      amount: Number(expenseAmount),
+      title: expenseTitle.trim(),
+      amount: numAmount,
       category: expenseCategory,
       paidBy: expensePaidBy,
-      splitWith: selectedSplitMembers.length > 0 ? selectedSplitMembers : trip.members.map(m => m.name),
+      splitMode: expenseSplitMode,
+      splitWith: selectedSplitMembers,
+      splits: expenseSplitMode === 'weighted' ? customWeights : {},
       type: expenseType,
       receiptUrl: expenseReceipt,
     });
@@ -120,6 +178,7 @@ export const BudgetDashboard = () => {
     setExpenseTitle('');
     setExpenseAmount('');
     setExpenseReceipt(null);
+    setSplitValidationError('');
     setIsExpenseModalOpen(false);
   };
 
@@ -468,7 +527,7 @@ export const BudgetDashboard = () => {
               <span>Expense History & Receipts</span>
             </h3>
             <button
-              onClick={() => setIsExpenseModalOpen(true)}
+              onClick={openExpenseModal}
               className="inline-flex items-center gap-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -503,7 +562,12 @@ export const BudgetDashboard = () => {
                     )}
 
                     <div>
-                      <div className="font-semibold text-brand-navy">{exp.title}</div>
+                      <div className="font-semibold text-brand-navy flex items-center gap-2">
+                        <span>{exp.title}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-brand-sand dark:bg-slate-700 text-brand-navy/70 dark:text-slate-300 border border-brand-sand-border">
+                          {exp.splitMode === 'weighted' ? 'Weighted Split' : 'Equal Split'}
+                        </span>
+                      </div>
                       <div className="text-[11px] text-brand-navy/60">
                         Paid by <strong className="text-brand-teal">{exp.paidBy}</strong> · {exp.date}
                         {exp.transactionId && (
@@ -511,6 +575,14 @@ export const BudgetDashboard = () => {
                             (Ref: {exp.transactionId})
                           </span>
                         )}
+                      </div>
+                      <div className="text-[10px] text-brand-navy/50 dark:text-slate-400 mt-0.5">
+                        Shared with:{' '}
+                        <strong className="text-brand-navy/80 dark:text-slate-300 font-semibold">
+                          {(exp.splitWith || []).length === (trip.members || []).length
+                            ? 'All travelers'
+                            : (exp.splitWith || []).join(', ')}
+                        </strong>
                       </div>
                       {proof && (
                         <button
@@ -625,6 +697,124 @@ export const BudgetDashboard = () => {
                 </select>
               </div>
 
+              {/* Equal vs Custom Weighted Split Mode Toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-brand-navy mb-1.5">
+                  Split Methodology
+                </label>
+                <div className="flex rounded-xl bg-brand-sand dark:bg-slate-800 p-1 border border-brand-sand-border dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseSplitMode('equal');
+                      setSplitValidationError('');
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      expenseSplitMode === 'equal'
+                        ? 'bg-brand-navy text-white shadow-xs'
+                        : 'text-brand-navy/60 dark:text-slate-400 hover:text-brand-navy'
+                    }`}
+                  >
+                    Equal Split
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseSplitMode('weighted');
+                      setSplitValidationError('');
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      expenseSplitMode === 'weighted'
+                        ? 'bg-brand-navy text-white shadow-xs'
+                        : 'text-brand-navy/60 dark:text-slate-400 hover:text-brand-navy'
+                    }`}
+                  >
+                    Custom Weighted (%)
+                  </button>
+                </div>
+              </div>
+
+              {/* Participating Travelers & Weight Allocations */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200">
+                    Split Among Travelers ({selectedSplitMembers.length} selected)
+                  </label>
+                  {expenseSplitMode === 'weighted' && (
+                    <span className={`text-[11px] font-bold ${totalCustomWeight === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      Total: {totalCustomWeight}% / 100%
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 max-h-48 overflow-y-auto p-2 rounded-2xl bg-brand-sand/40 dark:bg-slate-800/60 border border-brand-sand-border dark:border-slate-700">
+                  {(trip.members || []).map((m) => {
+                    const isSelected = selectedSplitMembers.includes(m.name);
+                    const calculatedShare =
+                      expenseSplitMode === 'equal'
+                        ? Math.round(Number(expenseAmount || 0) / Math.max(selectedSplitMembers.length, 1))
+                        : Math.round(((Number(expenseAmount || 0)) * (Number(customWeights[m.name]) || 0)) / 100);
+
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex items-center justify-between p-2 rounded-xl transition-all border ${
+                          isSelected
+                            ? 'bg-white dark:bg-slate-800 border-brand-orange/40 shadow-xs'
+                            : 'bg-white/40 dark:bg-slate-900/40 border-transparent opacity-60'
+                        }`}
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleMember(m.name)}
+                            className="rounded text-brand-orange focus:ring-brand-orange"
+                          />
+                          <img
+                            src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                            alt={m.name}
+                            className="w-6 h-6 rounded-full object-cover"
+                          />
+                          <span className="font-semibold text-xs text-brand-navy dark:text-white truncate">
+                            {m.name}
+                          </span>
+                        </label>
+
+                        {isSelected && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            {expenseSplitMode === 'weighted' ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={customWeights[m.name] ?? 0}
+                                  onChange={(e) => handleWeightChange(m.name, e.target.value)}
+                                  className="w-14 p-1 text-center font-bold text-xs rounded-lg border border-brand-sand-border dark:border-slate-600 focus:outline-none focus:border-brand-orange dark:bg-slate-700 dark:text-white"
+                                />
+                                <span className="text-xs font-semibold text-brand-navy/60">%</span>
+                              </div>
+                            ) : null}
+                            <span className="text-[11px] font-bold text-brand-teal">
+                              {formatPrice(calculatedShare)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Validation Warning Alert */}
+              {splitValidationError && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>{splitValidationError}</span>
+                </div>
+              )}
+
               {/* Upload Bill Receipt */}
               <div>
                 <label className="block text-xs font-semibold text-brand-navy mb-1 flex items-center justify-between">
@@ -672,9 +862,9 @@ export const BudgetDashboard = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-full text-xs font-semibold bg-brand-orange hover:bg-brand-orange-hover text-white shadow-sm"
+                  className="px-5 py-2 rounded-full text-xs font-bold bg-brand-orange hover:bg-brand-orange-hover text-white shadow-sm"
                 >
-                  Save & Split Evenly
+                  Save & Split {expenseSplitMode === 'equal' ? 'Evenly' : 'Custom Weighted'}
                 </button>
               </div>
             </form>

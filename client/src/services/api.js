@@ -13,6 +13,86 @@ const resolveApiBaseUrl = () => {
 };
 
 const BASE_URL = resolveApiBaseUrl();
+
+export const getStoredToken = () => {
+  return localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token') || null;
+};
+
+export const setStoredToken = (token) => {
+  if (token) {
+    if (localStorage.getItem('tt_current_user')) {
+      localStorage.setItem('tt_token', token);
+    } else {
+      sessionStorage.setItem('tt_token', token);
+    }
+  }
+};
+
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function onRefreshed(token) {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+/**
+ * Resilient authenticated fetch with JWT Bearer header and transparent token refresh
+ */
+export async function authFetch(url, options = {}) {
+  const token = getStoredToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const fetchOptions = {
+    ...options,
+    headers,
+    credentials: 'include',
+  };
+
+  let res = await fetch(url, fetchOptions);
+
+  if (res.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/refresh') && !url.includes('/auth/signup')) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          if (refreshData && refreshData.token) {
+            setStoredToken(refreshData.token);
+            onRefreshed(refreshData.token);
+            isRefreshing = false;
+            headers['Authorization'] = `Bearer ${refreshData.token}`;
+            return await fetch(url, { ...fetchOptions, headers });
+          }
+        }
+      } catch (err) {
+        console.warn('Silent refresh error:', err);
+      }
+      isRefreshing = false;
+    } else {
+      return new Promise((resolve) => {
+        refreshSubscribers.push(async (newToken) => {
+          headers['Authorization'] = `Bearer ${newToken}`;
+          resolve(await fetch(url, { ...fetchOptions, headers }));
+        });
+      });
+    }
+  }
+
+  return res;
+}
+
 /**
  * Safely parse JSON from a response.
  * Prevents "Unexpected token '<', '<!DOCTYPE '... is not valid JSON" glitches
@@ -793,11 +873,10 @@ export const api = {
     return { success: true, data: user, token: `demo-token-${user.id}` };
   },
 
-  // Upload Destination Venue Dataset (PRD Section 6.3 & 10.1)
+  // Upload Destination Venue Dataset (PRD Section 6.3 & 10.1 Admin Endpoint)
   async uploadVenueDataset(destination, venues) {
-    const res = await fetch(`${BASE_URL}/venues/dataset/upload`, {
+    const res = await authFetch(`${BASE_URL}/venues/dataset/upload`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ destination, venues }),
     });
     const data = await safeJson(res);
@@ -808,6 +887,69 @@ export const api = {
       throw err;
     }
     return data;
+  },
+
+  // Real Event-Driven Session Analytics (PRD Feature 4)
+  async getAnalytics(tripId) {
+    try {
+      const res = await authFetch(`${BASE_URL}/trips/${tripId}/analytics`);
+      if (res && res.ok) {
+        const data = await safeJson(res);
+        if (data && data.success) return data.data;
+      }
+    } catch (e) {
+      console.warn('Analytics API error:', e);
+    }
+    return null;
+  },
+
+  // Hybrid Group Recommendations (PRD Feature 5)
+  async getGroupRecommendations(tripId, params = {}) {
+    try {
+      const query = new URLSearchParams(params).toString();
+      const res = await authFetch(`${BASE_URL}/trips/${tripId}/recommendations?${query}`);
+      if (res && res.ok) {
+        const data = await safeJson(res);
+        if (data && data.success) return data.data;
+      }
+    } catch (e) {
+      console.warn('Group recommendations fetch error:', e);
+    }
+    return [];
+  },
+
+  // Optimistic Concurrency Update Activity
+  async updateActivityConcurrency(tripId, itemId, payload) {
+    const res = await authFetch(`${BASE_URL}/trips/${tripId}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      return {
+        success: false,
+        conflict: res.status === 409,
+        ...(data || {}),
+      };
+    }
+    return data;
+  },
+
+  // Refresh Session
+  async refreshSession() {
+    const res = await authFetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+    });
+    return await safeJson(res);
+  },
+
+  // Safe Logout
+  async logoutSession() {
+    try {
+      await authFetch(`${BASE_URL}/auth/logout`, {
+        method: 'POST',
+      });
+    } catch {}
   },
 
   // Live Weather & Coastal Marine Real-Time Data (Open-Meteo)

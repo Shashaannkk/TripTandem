@@ -1,9 +1,11 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 
+import { connectDB } from './db.js';
 import venuesRoutes from './routes/venuesRoutes.js';
 import tripsRoutes from './routes/tripsRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
@@ -16,11 +18,23 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Configure Socket.IO
+// Configure Socket.IO with CORS
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map(s => s.trim())
+  : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'];
+
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or Postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Dev resilient
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT'],
+    credentials: true,
   },
 });
 
@@ -28,8 +42,17 @@ setupSocketIO(io);
 app.set('io', io);
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    return callback(null, true); // Permissive for local dev + credentials
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
 
 // API Routes (v1 & legacy compatible)
 app.use('/api/venues', venuesRoutes);
@@ -54,6 +77,16 @@ app.get('/api/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`✨ TripTandem Backend Server listening on http://localhost:${PORT}`);
-});
+
+// Connect to MongoDB if MONGODB_URI is provided
+connectDB()
+  .catch((err) => {
+    console.error('Fatal database startup failure:', err.message);
+  })
+  .finally(() => {
+    server.listen(PORT, () => {
+      console.log(`✨ TripTandem Backend Server listening on http://localhost:${PORT}`);
+    });
+  });
+
+export { app, server, io };

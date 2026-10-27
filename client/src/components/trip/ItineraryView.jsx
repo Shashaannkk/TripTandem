@@ -16,10 +16,13 @@ import { useTrip } from '../../context/TripContext';
 import { ActivityCard } from './ActivityCard';
 import { ConflictAlertBanner } from './ConflictAlertBanner';
 import { TransportTransitionCard } from './TransportTransitionCard';
+import { GroupRecommendationsRail } from './GroupRecommendationsRail';
 
 export const ItineraryView = ({ onOpenAddModal }) => {
-  const { trip, activeDayIndex, reorderDayItems } = useTrip();
+  const { trip, activeDayIndex, reorderActivity, moveActivityToDay } = useTrip();
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'day' | 'night'
+  const [draggedItemId, setDraggedItemId] = useState(null);
+  const [dropIndicatorIndex, setDropIndicatorIndex] = useState(null);
 
   if (!trip || !trip.days || !trip.days[activeDayIndex]) return null;
 
@@ -37,12 +40,75 @@ export const ItineraryView = ({ onOpenAddModal }) => {
     : items;
 
   const handleMove = (index, direction) => {
-    const newItems = [...items];
     const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= newItems.length) return;
-    const [moved] = newItems.splice(index, 1);
-    newItems.splice(targetIndex, 0, moved);
-    reorderDayItems(currentDay.dayNumber, newItems);
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+    const item = items[index];
+    reorderActivity({
+      itemId: item.id,
+      dayNumber: currentDay.dayNumber,
+      targetIndex,
+      positionVersion: item.positionVersion || 1,
+    });
+  };
+
+  const handleDragStart = (e, item, index) => {
+    setDraggedItemId(item.id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify({
+        itemId: item.id,
+        dayNumber: currentDay.dayNumber,
+        sourceIndex: index,
+        positionVersion: item.positionVersion || 1,
+      })
+    );
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropIndicatorIndex !== index) {
+      setDropIndicatorIndex(index);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemId(null);
+    setDropIndicatorIndex(null);
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    setDropIndicatorIndex(null);
+    setDraggedItemId(null);
+
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const data = JSON.parse(dataStr);
+
+      if (data.dayNumber === currentDay.dayNumber) {
+        if (data.sourceIndex !== targetIndex) {
+          reorderActivity({
+            itemId: data.itemId,
+            dayNumber: currentDay.dayNumber,
+            targetIndex,
+            positionVersion: data.positionVersion,
+          });
+        }
+      } else {
+        moveActivityToDay({
+          itemId: data.itemId,
+          fromDayNumber: data.dayNumber,
+          toDayNumber: currentDay.dayNumber,
+          targetIndex,
+          positionVersion: data.positionVersion,
+        });
+      }
+    } catch (err) {
+      console.warn('Drop reorder error:', err);
+    }
   };
 
   return (
@@ -121,6 +187,9 @@ export const ItineraryView = ({ onOpenAddModal }) => {
         </div>
       </div>
 
+      {/* Recommended for Your Group (Hybrid AI Engine) */}
+      <GroupRecommendationsRail />
+
       {/* 2. Conflict Alerts if detected */}
       <ConflictAlertBanner />
 
@@ -153,6 +222,7 @@ export const ItineraryView = ({ onOpenAddModal }) => {
             const nextItem = filteredItems[idx + 1];
             const isDayTask = item.timeSlot === 'morning' || item.timeSlot === 'afternoon';
             const isNightTask = item.timeSlot === 'evening' || item.timeSlot === 'night';
+            const isBeingDragged = draggedItemId === item.id;
 
             return (
               <React.Fragment key={item.id}>
@@ -169,15 +239,36 @@ export const ItineraryView = ({ onOpenAddModal }) => {
                   </div>
                 )}
 
-                {/* Activity Card */}
-                <ActivityCard
-                  item={item}
-                  dayNumber={currentDay.dayNumber}
-                  onMoveUp={() => handleMove(idx, -1)}
-                  onMoveDown={() => handleMove(idx, 1)}
-                  isFirst={idx === 0}
-                  isLast={idx === items.length - 1}
-                />
+                {/* Insertion Indicator line before item */}
+                {dropIndicatorIndex === idx && draggedItemId !== item.id && (
+                  <div className="h-2 my-1 rounded-full bg-brand-orange/80 animate-pulse flex items-center justify-center">
+                    <span className="text-[9px] uppercase font-bold tracking-wider bg-brand-orange text-white px-2 py-0.5 rounded-full shadow-sm">
+                      Insert Here
+                    </span>
+                  </div>
+                )}
+
+                {/* Activity Card with Drop Target & Drag Handle props */}
+                <div
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  className="transition-all"
+                >
+                  <ActivityCard
+                    item={item}
+                    dayNumber={currentDay.dayNumber}
+                    onMoveUp={() => handleMove(idx, -1)}
+                    onMoveDown={() => handleMove(idx, 1)}
+                    isFirst={idx === 0}
+                    isLast={idx === items.length - 1}
+                    isDragging={isBeingDragged}
+                    dragHandleProps={{
+                      draggable: true,
+                      onDragStart: (e) => handleDragStart(e, item, idx),
+                      onDragEnd: handleDragEnd,
+                    }}
+                  />
+                </div>
 
                 {/* "What After Next" Suggested In-Between Transit Card between sequential items */}
                 {nextItem && (
@@ -191,6 +282,19 @@ export const ItineraryView = ({ onOpenAddModal }) => {
               </React.Fragment>
             );
           })}
+
+          {/* End of Day Drop Zone */}
+          <div
+            onDragOver={(e) => handleDragOver(e, items.length)}
+            onDrop={(e) => handleDrop(e, items.length)}
+            className={`transition-all rounded-2xl border-2 border-dashed py-3 px-4 text-center text-xs font-semibold text-brand-navy/40 dark:text-slate-500 ${
+              dropIndicatorIndex === items.length
+                ? 'border-brand-orange bg-brand-orange/10 text-brand-orange scale-[1.01]'
+                : 'border-transparent hover:border-brand-sand-border'
+            }`}
+          >
+            {dropIndicatorIndex === items.length ? 'Drop to place at end of day' : ''}
+          </div>
 
         </div>
       )}

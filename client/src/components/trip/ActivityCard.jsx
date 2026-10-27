@@ -13,13 +13,23 @@ import {
   ArrowDown, 
   Check, 
   Edit3,
-  CheckCircle2
+  CheckCircle2,
+  GripVertical
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTrip } from '../../context/TripContext';
 import { Badge } from '../common/Badge';
 
-export const ActivityCard = ({ item, dayNumber, onMoveUp, onMoveDown, isFirst, isLast }) => {
+export const ActivityCard = ({
+  item,
+  dayNumber,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+  isDragging = false,
+  dragHandleProps = {},
+}) => {
   const { currentUser, formatPrice } = useAuth();
   const { castVote, removeActivity, updateActivity, trip } = useTrip();
 
@@ -43,17 +53,41 @@ export const ActivityCard = ({ item, dayNumber, onMoveUp, onMoveDown, isFirst, i
     setIsEditing(false);
   };
 
+  const handleDragHandleKeyDown = (e) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isFirst && onMoveUp) onMoveUp();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isLast && onMoveDown) onMoveDown();
+    }
+  };
+
   return (
     <div
-      className={`group relative rounded-3xl p-4 sm:p-5 border transition-all duration-300 shadow-subtle hover:shadow-card flex flex-col md:flex-row gap-5 items-start ${
-        isLocked
+      className={`group relative rounded-3xl p-4 sm:p-5 border transition-all duration-300 shadow-subtle hover:shadow-card flex flex-col md:flex-row gap-4 items-start ${
+        isDragging
+          ? 'opacity-40 scale-[0.98] ring-2 ring-brand-orange border-brand-orange bg-brand-orange/5'
+          : isLocked
           ? 'border-brand-teal/40 bg-white dark:bg-slate-900 dark:border-teal-700/50'
           : item.status === 'voting'
           ? 'border-brand-orange/40 bg-white dark:bg-slate-900 dark:border-orange-700/50'
           : 'border-dashed border-brand-sand-border dark:border-slate-800 bg-white/80 dark:bg-slate-900/80'
       }`}
     >
-      
+      {/* Drag Handle (Pointer, Touch, and Keyboard accessible) */}
+      <div
+        {...dragHandleProps}
+        onKeyDown={handleDragHandleKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={`Drag to reorder activity ${item.title}. Press Arrow Up or Down to move.`}
+        className="drag-handle cursor-grab active:cursor-grabbing p-1.5 -ml-1 text-brand-navy/30 hover:text-brand-orange hover:bg-brand-sand dark:hover:bg-slate-800 rounded-xl transition-colors focus:ring-2 focus:ring-brand-orange focus:outline-none flex items-center justify-center shrink-0 self-center hidden sm:flex"
+        title="Drag handle: Reorder within or across days (Keyboard: ↑ / ↓)"
+      >
+        <GripVertical className="w-5 h-5" />
+      </div>
+
       {/* Left: Thumbnail & Source Badges */}
       <div className="relative w-full md:w-48 h-36 rounded-2xl overflow-hidden flex-shrink-0 bg-brand-sand">
         <img

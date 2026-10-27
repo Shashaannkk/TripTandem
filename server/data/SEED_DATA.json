@@ -1,0 +1,459 @@
+{
+  "users": [
+    {
+      "id": "user-1",
+      "name": "Alex Morgan",
+      "email": "alex@triptandem.travel",
+      "phone": "+91 98201 12345",
+      "role": "Leader",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "color": "#FF6B45",
+      "upiId": "alex@okhdfcbank",
+      "emergencyContact": {
+        "name": "Marcus Morgan",
+        "relationship": "Father",
+        "phone": "+91 98200 99881",
+        "bloodGroup": "O+",
+        "medicalNotes": "Certified in First Aid."
+      }
+    },
+    {
+      "id": "user-2",
+      "name": "Priya Sharma",
+      "email": "priya@triptandem.travel",
+      "phone": "+91 98202 23456",
+      "role": "Planner",
+      "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+      "color": "#0D9488",
+      "upiId": "priya@oksbi",
+      "emergencyContact": {
+        "name": "Sunita Sharma",
+        "relationship": "Mother",
+        "phone": "+91 98200 88772",
+        "bloodGroup": "B+",
+        "medicalNotes": "Asthmatic inhaler carrier."
+      }
+    },
+    {
+      "id": "user-3",
+      "name": "Rohan Mehta",
+      "email": "rohan@triptandem.travel",
+      "phone": "+91 98203 34567",
+      "role": "Planner",
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      "color": "#F59E0B",
+      "upiId": "rohan@okaxis",
+      "emergencyContact": {
+        "name": "Vikram Mehta",
+        "relationship": "Brother",
+        "phone": "+91 98200 77663",
+        "bloodGroup": "A+",
+        "medicalNotes": "None."
+      }
+    },
+    {
+      "id": "user-4",
+      "name": "Aisha Khan",
+      "email": "aisha@triptandem.travel",
+      "phone": "+91 98204 45678",
+      "role": "Viewer",
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      "color": "#8B5CF6",
+      "upiId": "aisha@okicici",
+      "emergencyContact": {
+        "name": "Farhan Khan",
+        "relationship": "Spouse",
+        "phone": "+91 98200 66554",
+        "bloodGroup": "AB+",
+        "medicalNotes": "Peanut allergy."
+      }
+    },
+    {
+      "id": "user-admin",
+      "name": "System Administrator",
+      "email": "admin@triptandem.travel",
+      "phone": "+91 98200 00000",
+      "role": "Admin",
+      "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+      "color": "#111C2E",
+      "upiId": "admin@oktriptandem",
+      "emergencyContact": {
+        "name": "Admin Ops",
+        "relationship": "Work",
+        "phone": "+91 98200 00001",
+        "bloodGroup": "O+",
+        "medicalNotes": "None."
+      }
+    }
+  ],
+  "venues": [
+    {
+      "id": "v-goa-1",
+      "name": "Fisherman's Wharf Panaji",
+      "destination": "Goa",
+      "region": "Panaji Riverfront",
+      "state": "Goa",
+      "category": "restaurant",
+      "type": "restaurant",
+      "price": 1200,
+      "rating": 4.8,
+      "reviewCount": 1850,
+      "dietaryTags": ["seafood", "gluten-free", "halal"],
+      "openingHours": "12:00 PM - 11:00 PM",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.8312, 15.4989]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "Authentic Goan prawn balchão and kingfish rawa fry overlooking the Mandovi riverfront."
+    },
+    {
+      "id": "v-goa-2",
+      "name": "Curlies Beach Shack & Sundowner Deck",
+      "destination": "Goa",
+      "region": "Anjuna",
+      "state": "Goa",
+      "category": "experience",
+      "type": "experience",
+      "price": 800,
+      "rating": 4.6,
+      "reviewCount": 2400,
+      "dietaryTags": ["seafood", "vegetarian", "cocktails"],
+      "openingHours": "08:30 AM - 02:00 AM",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.7412, 15.5802]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "Legendary South Anjuna sunset deck with live acoustic sessions and fresh wood-fired pizzas."
+    },
+    {
+      "id": "v-goa-3",
+      "name": "Viva Panjim Heritage Latin Quarter",
+      "destination": "Goa",
+      "region": "Fontainhas",
+      "state": "Goa",
+      "category": "restaurant",
+      "type": "restaurant",
+      "price": 650,
+      "rating": 4.9,
+      "reviewCount": 980,
+      "dietaryTags": ["pork-vindaloo", "vegetarian", "gluten-free"],
+      "openingHours": "11:30 AM - 10:30 PM",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.8344, 15.4952]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "Historic Portuguese townhouse serving traditional pork vindaloo, fish curry rice, and bebinca."
+    },
+    {
+      "id": "v-goa-4",
+      "name": "Grande Island Scuba & Coral Snorkeling Safari",
+      "destination": "Goa",
+      "region": "Ilha Grande",
+      "state": "Goa",
+      "category": "experience",
+      "type": "experience",
+      "price": 2800,
+      "rating": 4.75,
+      "reviewCount": 1420,
+      "dietaryTags": ["buffet-lunch", "vegetarian", "halal"],
+      "openingHours": "07:00 AM - 03:30 PM",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.7654, 15.3512]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "PADI-guided reef diving, dolphin spotting catamaran tour, and island beach BBQ."
+    },
+    {
+      "id": "v-goa-5",
+      "name": "Bean Me Up Conscious Vegan Garden Cafe",
+      "destination": "Goa",
+      "region": "Vagator",
+      "state": "Goa",
+      "category": "restaurant",
+      "type": "restaurant",
+      "price": 550,
+      "rating": 4.85,
+      "reviewCount": 840,
+      "dietaryTags": ["vegan", "organic", "gluten-free"],
+      "openingHours": "08:30 AM - 11:00 PM",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.7478, 15.5945]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "Tree-shaded garden haven serving artisanal tempeh dishes, kombucha, and plant-based desserts."
+    },
+    {
+      "id": "v-goa-6",
+      "name": "Taj Fort Aguada Beach Resort & Heritage Ramparts",
+      "destination": "Goa",
+      "region": "Sinquerim",
+      "state": "Goa",
+      "category": "stay",
+      "type": "stay",
+      "price": 14500,
+      "rating": 4.95,
+      "reviewCount": 3100,
+      "dietaryTags": ["all-inclusive", "jain", "vegan", "seafood"],
+      "openingHours": "24 Hours",
+      "location": {
+        "type": "Point",
+        "coordinates": [73.7667, 15.4922]
+      },
+      "images": [
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80"
+      ],
+      "description": "16th-century Portuguese fortress clifftop resort with infinity pool facing the Arabian Sea."
+    }
+  ],
+  "trips": [
+    {
+      "id": "trip-goa-2026",
+      "title": "Goa Sunkissed Coastal Trail & Old Latin Quarter",
+      "destination": "Goa, India",
+      "inviteCode": "TANDEM-GOA-26",
+      "startDate": "2026-11-12",
+      "endDate": "2026-11-15",
+      "daysCount": 4,
+      "isRoomLocked": false,
+      "members": [
+        {
+          "id": "user-1",
+          "name": "Alex Morgan",
+          "role": "Leader",
+          "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+        },
+        {
+          "id": "user-2",
+          "name": "Priya Sharma",
+          "role": "Planner",
+          "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80"
+        },
+        {
+          "id": "user-3",
+          "name": "Rohan Mehta",
+          "role": "Planner",
+          "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+        },
+        {
+          "id": "user-4",
+          "name": "Aisha Khan",
+          "role": "Viewer",
+          "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
+        }
+      ],
+      "budget": {
+        "totalTarget": 45000,
+        "splitMode": "equal",
+        "categories": {
+          "accommodation": 18000,
+          "food": 14000,
+          "activities": 9000,
+          "transport": 4000
+        },
+        "expenses": [
+          {
+            "id": "exp-goa-1",
+            "title": "Villa Booking Advance",
+            "amount": 16000,
+            "paidBy": "user-1",
+            "splitMode": "equal",
+            "splitWith": ["user-1", "user-2", "user-3", "user-4"]
+          },
+          {
+            "id": "exp-goa-2",
+            "title": "Airport Cabs to North Goa",
+            "amount": 3200,
+            "paidBy": "user-2",
+            "splitMode": "equal",
+            "splitWith": ["user-1", "user-2", "user-3", "user-4"]
+          },
+          {
+            "id": "exp-goa-3",
+            "title": "Fisherman's Wharf Welcome Dinner",
+            "amount": 4800,
+            "paidBy": "user-3",
+            "splitMode": "weighted",
+            "splitWith": ["user-1", "user-2", "user-3", "user-4"],
+            "splits": {
+              "user-1": 35,
+              "user-2": 25,
+              "user-3": 25,
+              "user-4": 15
+            }
+          }
+        ]
+      },
+      "days": [
+        {
+          "dayNumber": 1,
+          "dateFormatted": "Thu, Nov 12",
+          "theme": "Arrival, Latin Quarter Fontainhas & Mandovi Sunset",
+          "items": [
+            {
+              "id": "item-goa-1",
+              "dayNumber": 1,
+              "timeSlot": "morning",
+              "startTime": "10:00 AM",
+              "duration": "2h",
+              "title": "Check-in & Fontainhas Heritage Walk",
+              "venueId": "v-goa-3",
+              "venueName": "Viva Panjim Heritage Latin Quarter",
+              "category": "experience",
+              "costPerPerson": 0,
+              "positionVersion": 1,
+              "lifecycleStage": "locked",
+              "votes": { "up": ["user-1", "user-2", "user-3"], "down": [] }
+            },
+            {
+              "id": "item-goa-2",
+              "dayNumber": 1,
+              "timeSlot": "afternoon",
+              "startTime": "01:30 PM",
+              "duration": "1.5h",
+              "title": "Traditional Goan Lunch at Viva Panjim",
+              "venueId": "v-goa-3",
+              "venueName": "Viva Panjim Heritage Latin Quarter",
+              "category": "restaurant",
+              "costPerPerson": 650,
+              "positionVersion": 1,
+              "lifecycleStage": "locked",
+              "votes": { "up": ["user-1", "user-2", "user-3", "user-4"], "down": [] }
+            },
+            {
+              "id": "item-goa-3",
+              "dayNumber": 1,
+              "timeSlot": "evening",
+              "startTime": "06:30 PM",
+              "duration": "3h",
+              "title": "Fisherman's Wharf Sunset & Mandovi River Dinner",
+              "venueId": "v-goa-1",
+              "venueName": "Fisherman's Wharf Panaji",
+              "category": "restaurant",
+              "costPerPerson": 1200,
+              "positionVersion": 1,
+              "lifecycleStage": "voting",
+              "votes": { "up": ["user-1", "user-2"], "down": [] }
+            }
+          ]
+        },
+        {
+          "dayNumber": 2,
+          "dateFormatted": "Fri, Nov 13",
+          "theme": "Grande Island Coral Snorkeling & Coastal Shacks",
+          "items": [
+            {
+              "id": "item-goa-4",
+              "dayNumber": 2,
+              "timeSlot": "morning",
+              "startTime": "07:30 AM",
+              "duration": "5h",
+              "title": "Grande Island Scuba & Dolphin Cruise",
+              "venueId": "v-goa-4",
+              "venueName": "Grande Island Scuba & Coral Snorkeling Safari",
+              "category": "experience",
+              "costPerPerson": 2800,
+              "positionVersion": 1,
+              "lifecycleStage": "drafting",
+              "votes": { "up": ["user-1", "user-3"], "down": [] }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "interactions": [
+    {
+      "userId": "user-1",
+      "tripId": "trip-goa-2026",
+      "venueId": "v-goa-1",
+      "category": "restaurant",
+      "interactionType": "vote_up",
+      "rating": 5,
+      "coTraveledWith": ["user-2", "user-3"]
+    },
+    {
+      "userId": "user-2",
+      "tripId": "trip-goa-2026",
+      "venueId": "v-goa-5",
+      "category": "restaurant",
+      "interactionType": "pin",
+      "rating": 5,
+      "coTraveledWith": ["user-1", "user-4"]
+    },
+    {
+      "userId": "user-3",
+      "tripId": "trip-goa-2026",
+      "venueId": "v-goa-4",
+      "category": "experience",
+      "interactionType": "vote_up",
+      "rating": 5,
+      "coTraveledWith": ["user-1", "user-2"]
+    }
+  ],
+  "eventLogs": [
+    {
+      "id": "evt-seed-1",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-1",
+      "type": "trip.created",
+      "timestamp": "2026-10-25T08:00:00.000Z",
+      "metadata": { "title": "Goa Sunkissed Coastal Trail & Old Latin Quarter" }
+    },
+    {
+      "id": "evt-seed-2",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-2",
+      "type": "trip.member.joined",
+      "timestamp": "2026-10-25T08:15:00.000Z",
+      "metadata": { "role": "Planner" }
+    },
+    {
+      "id": "evt-seed-3",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-1",
+      "type": "itinerary.item.created",
+      "timestamp": "2026-10-25T09:30:00.000Z",
+      "metadata": { "itemId": "item-goa-1", "title": "Check-in & Fontainhas Heritage Walk" }
+    },
+    {
+      "id": "evt-seed-4",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-2",
+      "type": "ai.question",
+      "timestamp": "2026-10-25T10:00:00.000Z",
+      "metadata": { "query": "Suggest the best Goan seafood dinner near Panaji waterfront" }
+    },
+    {
+      "id": "evt-seed-5",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-3",
+      "type": "vote.cast",
+      "timestamp": "2026-10-25T11:20:00.000Z",
+      "metadata": { "itemId": "item-goa-2", "vote": "up" }
+    },
+    {
+      "id": "evt-seed-6",
+      "tripId": "trip-goa-2026",
+      "actorId": "user-1",
+      "type": "conflict.resolved",
+      "timestamp": "2026-10-25T12:00:00.000Z",
+      "metadata": { "slot": "Day 1 afternoon", "winningOption": "item-goa-2" }
+    }
+  ]
+}
+

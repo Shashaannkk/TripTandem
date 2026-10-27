@@ -2,6 +2,7 @@ import express from 'express';
 import { store } from '../store.js';
 import { providerRegistry } from '../services/providers/ProviderRegistry.js';
 import { geocodingService } from '../services/GeocodingService.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -577,7 +578,7 @@ router.get(['/:destination/venues', '/destinations/:destination/venues'], (req, 
 });
 
 // POST /api/venues/dataset/upload (PRD Section 6.3 & 10.1 Admin Dataset Ingestion)
-router.post('/dataset/upload', (req, res) => {
+router.post('/dataset/upload', authenticateToken, requireRole('Admin'), (req, res) => {
   const { destination, venues } = req.body;
 
   if (!destination || typeof destination !== 'string') {
