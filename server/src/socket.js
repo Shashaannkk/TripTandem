@@ -9,6 +9,36 @@ export function setupSocketIO(io) {
   // Map of tripId -> Map(socketId -> userData)
   const roomPresences = new Map();
 
+  // Helper to resolve verified user identity from token (JWT or demo token)
+  async function resolveSocketUser(token) {
+    if (!token) return null;
+    const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+    if (typeof cleanToken === 'string' && cleanToken.startsWith('demo-token-')) {
+      const demoId = cleanToken.replace('demo-token-', '');
+      const user = await dataService.getUserById(demoId);
+      if (user) {
+        return {
+          id: user.id || (user._id ? String(user._id) : demoId),
+          email: user.email,
+          name: user.name,
+          role: user.role || 'Planner',
+        };
+      }
+    }
+    try {
+      const decoded = jwt.verify(cleanToken, JWT_SECRET);
+      if (decoded && decoded.id) {
+        return {
+          id: decoded.id,
+          email: decoded.email,
+          name: decoded.name || 'Traveler',
+          role: decoded.role || 'Planner',
+        };
+      }
+    } catch {}
+    return null;
+  }
+
   // -------------------------------------------------------------
   // Socket.IO Handshake Authentication Middleware (PRD Section 10)
   // -------------------------------------------------------------
@@ -24,37 +54,27 @@ export function setupSocketIO(io) {
       }
 
       if (!token) {
-        // Allow unauthenticated connection in read-only / guest mode for tests or public joins
         socket.user = null;
         return next();
       }
 
-      const decoded = jwt.verify(token, JWT_SECRET);
-      if (!decoded || !decoded.id) {
-        return next(new Error('Authentication error: invalid token claims'));
-      }
-
-      // Attach verified server-side identity to socket context
-      socket.user = {
-        id: decoded.id,
-        email: decoded.email,
-        name: decoded.name || 'Traveler',
-        role: decoded.role || 'Planner',
-      };
-
+      const verifiedUser = await resolveSocketUser(token);
+      socket.user = verifiedUser || null;
       next();
     } catch (err) {
-      return next(new Error(`Authentication error: ${err.message}`));
+      socket.user = null;
+      next();
     }
   });
 
   // Helper to verify user permissions for mutating operations on a trip
   async function authorizeSocketTripAction(socket, tripId, allowedRoles = ['Planner', 'Leader', 'Admin']) {
-    if (!socket.user) {
+    const activeUser = socket.user || socket.userData;
+    if (!activeUser || !activeUser.id) {
       return { authorized: false, error: 'Unauthorized: authentication token required.' };
     }
 
-    if (socket.user.role === 'Admin') {
+    if (activeUser.role === 'Admin') {
       return { authorized: true, role: 'Admin' };
     }
 
@@ -63,17 +83,27 @@ export function setupSocketIO(io) {
       return { authorized: false, error: `Trip "${tripId}" not found.` };
     }
 
-    const member = (trip.members || []).find(
-      m => m.id === socket.user.id ||
-           (m.email && socket.user.email && m.email.toLowerCase() === socket.user.email.toLowerCase()) ||
-           (m.name && socket.user.name && m.name.toLowerCase() === socket.user.name.toLowerCase())
-    );
+    const targetUserId = String(activeUser.id || activeUser._id || '');
+    const targetUserEmail = activeUser.email ? activeUser.email.toLowerCase() : null;
+    const targetUserName = activeUser.name ? activeUser.name.toLowerCase() : null;
+
+    const member = (trip.members || []).find(m => {
+      const mId = m.id || m._id ? String(m.id || m._id) : null;
+      const mEmail = m.email ? m.email.toLowerCase() : null;
+      const mName = m.name ? m.name.toLowerCase() : null;
+
+      return (
+        (mId && mId === targetUserId) ||
+        (mEmail && targetUserEmail && mEmail === targetUserEmail) ||
+        (mName && targetUserName && mName === targetUserName)
+      );
+    });
 
     if (!member) {
       return { authorized: false, error: 'Forbidden: you are not a member of this trip room.' };
     }
 
-    const effectiveRole = member.role || 'Planner';
+    const effectiveRole = member.role || activeUser.role || 'Planner';
     const isAllowed =
       allowedRoles.includes(effectiveRole) ||
       ((effectiveRole === 'Owner' || effectiveRole === 'Leader') && !allowedRoles.every(r => r === 'Admin'));
@@ -92,11 +122,16 @@ export function setupSocketIO(io) {
     // -----------------------------------------------------------
     // 1. Join Trip Room
     // -----------------------------------------------------------
-    socket.on('join_trip', async ({ tripId, user }, callback) => {
+    socket.on('join_trip', async ({ tripId, user, token }, callback) => {
       try {
         if (!tripId) {
           if (callback) callback({ success: false, error: 'Trip ID is required' });
           return;
+        }
+
+        if (token && !socket.user) {
+          const verified = await resolveSocketUser(token);
+          if (verified) socket.user = verified;
         }
 
         const effectiveUser = socket.user || user || {
@@ -116,11 +151,23 @@ export function setupSocketIO(io) {
 
         // Register member in trip if not present
         const trip = await dataService.getTripById(tripId);
+        let updatedTrip = trip;
         if (trip && effectiveUser && (effectiveUser.id || effectiveUser.name)) {
-          const existingIdx = (trip.members || []).findIndex(
-            m => (m.id && effectiveUser.id && m.id === effectiveUser.id) ||
-                 (m.email && effectiveUser.email && m.email.toLowerCase() === effectiveUser.email.toLowerCase())
-          );
+          const targetId = effectiveUser.id ? String(effectiveUser.id) : null;
+          const targetEmail = effectiveUser.email ? effectiveUser.email.toLowerCase() : null;
+          const targetName = effectiveUser.name ? effectiveUser.name.toLowerCase() : null;
+
+          const existingIdx = (trip.members || []).findIndex(m => {
+            const mId = m.id || m._id ? String(m.id || m._id) : null;
+            const mEmail = m.email ? m.email.toLowerCase() : null;
+            const mName = m.name ? m.name.toLowerCase() : null;
+
+            return (
+              (mId && targetId && mId === targetId) ||
+              (mEmail && targetEmail && mEmail === targetEmail) ||
+              (mName && targetName && mName === targetName)
+            );
+          });
 
           if (existingIdx === -1) {
             const newMemberObj = {
@@ -134,7 +181,7 @@ export function setupSocketIO(io) {
               joinedAt: new Date().toISOString(),
             };
 
-            const updatedTrip = await dataService.addMemberToTrip(tripId, newMemberObj);
+            updatedTrip = await dataService.addMemberToTrip(tripId, newMemberObj);
 
             // Record event
             await dataService.recordEvent({
@@ -155,6 +202,10 @@ export function setupSocketIO(io) {
               isSystem: true,
             };
 
+            if (!updatedTrip.chat) updatedTrip.chat = [];
+            updatedTrip.chat.push(joinMsg);
+            await dataService.updateTrip(tripId, { chat: updatedTrip.chat });
+
             io.to(`trip_${tripId}`).emit('member_joined', { trip: updatedTrip, newMember: newMemberObj });
             io.to(`trip_${tripId}`).emit('new_message', { message: joinMsg });
           }
@@ -168,9 +219,33 @@ export function setupSocketIO(io) {
           joinedUser: effectiveUser,
         });
 
-        if (callback) callback({ success: true, activeUsers });
+        if (callback) {
+          const finalTrip = updatedTrip || (await dataService.getTripById(tripId));
+          callback({
+            success: true,
+            tripId,
+            trip: finalTrip,
+            members: finalTrip?.members || [],
+            activeUsers,
+          });
+        }
       } catch (err) {
         if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    socket.on('member_join', async ({ tripId, member, trip: clientTrip }) => {
+      const trip = await dataService.getTripById(tripId);
+      const effectiveTrip = trip || clientTrip;
+      if (member) {
+        io.to(`trip_${tripId}`).emit('member_joined', { trip: effectiveTrip, newMember: member });
+        const presences = roomPresences.get(tripId);
+        const activeUsers = presences ? Array.from(presences.values()) : [member];
+        io.to(`trip_${tripId}`).emit('presence_sync', {
+          tripId,
+          activeUsers,
+          joinedUser: member,
+        });
       }
     });
 
@@ -323,17 +398,22 @@ export function setupSocketIO(io) {
     // -----------------------------------------------------------
     // 5. Send Chat Message & Typing
     // -----------------------------------------------------------
-    socket.on('send_message', async ({ tripId, message }) => {
+    socket.on('send_message', async ({ tripId, message, token }) => {
+      if (token && !socket.user) {
+        const verified = await resolveSocketUser(token);
+        if (verified) socket.user = verified;
+      }
       const authCheck = await authorizeSocketTripAction(socket, tripId, ['Viewer', 'Planner', 'Leader', 'Admin']);
       if (!authCheck.authorized) {
         socket.emit('trip.error', { event: 'send_message', message: authCheck.error });
         return;
       }
 
+      const sender = socket.user || socket.userData || {};
       const safeMessage = {
         ...message,
-        senderId: socket.user?.id || message.senderId,
-        senderName: socket.user?.name || message.senderName,
+        senderId: sender.id || message.senderId,
+        senderName: sender.name || message.senderName,
       };
 
       const trip = await dataService.getTripById(tripId);

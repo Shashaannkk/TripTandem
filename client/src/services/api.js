@@ -390,7 +390,7 @@ export const api = {
 
   async getTripById(id) {
     try {
-      const res = await fetch(`${BASE_URL}/trips/${id}`);
+      const res = await authFetch(`${BASE_URL}/trips/${id}`);
       if (res && res.ok) {
         const data = await safeJson(res);
         if (data && data.data) return data.data;
@@ -403,7 +403,7 @@ export const api = {
 
   async createTrip(tripData) {
     try {
-      const res = await fetch(`${BASE_URL}/trips`, {
+      const res = await authFetch(`${BASE_URL}/trips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tripData),
@@ -425,7 +425,7 @@ export const api = {
 
   async getTripByInviteCode(inviteCode) {
     try {
-      const res = await fetch(`${BASE_URL}/trips/code/${encodeURIComponent(inviteCode)}`);
+      const res = await authFetch(`${BASE_URL}/trips/code/${encodeURIComponent(inviteCode)}`);
       if (res && res.ok) {
         const data = await safeJson(res);
         if (data && data.data) return data.data;
@@ -438,7 +438,7 @@ export const api = {
 
   async joinTripByCode(inviteCode, user, role = 'Planner') {
     try {
-      const res = await fetch(`${BASE_URL}/trips/join-by-code`, {
+      const res = await authFetch(`${BASE_URL}/trips/join-by-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteCode, user, role }),
@@ -455,7 +455,7 @@ export const api = {
 
   async updateMemberRole(tripId, memberId, role) {
     try {
-      const res = await fetch(`${BASE_URL}/trips/${tripId}/members/${memberId}/role`, {
+      const res = await authFetch(`${BASE_URL}/trips/${tripId}/members/${memberId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
@@ -472,7 +472,7 @@ export const api = {
 
   async removeTripMember(tripId, memberId) {
     try {
-      const res = await fetch(`${BASE_URL}/trips/${tripId}/members/${memberId}`, {
+      const res = await authFetch(`${BASE_URL}/trips/${tripId}/members/${memberId}`, {
         method: 'DELETE',
       });
       if (res && res.ok) {

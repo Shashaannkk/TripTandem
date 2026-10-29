@@ -23,14 +23,14 @@ export const TripWorkspacePage = () => {
   const [targetDayForAdd, setTargetDayForAdd] = useState(1);
 
   useEffect(() => {
-    if (tripId && trip?.id !== tripId) {
+    if (tripId) {
       api.getTripById(tripId).then(fetched => {
-        if (fetched) {
+        if (fetched && fetched.id === tripId) {
           setTrip(fetched);
         }
       });
     }
-  }, [tripId, trip?.id, setTrip]);
+  }, [tripId, setTrip]);
 
   const handleOpenAddModal = (dayNumber) => {
     setTargetDayForAdd(dayNumber);

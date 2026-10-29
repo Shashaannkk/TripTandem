@@ -214,6 +214,13 @@ export const AuthProvider = ({ children }) => {
     const demoUser = USERS[userIndex] || USERS[0];
     saveSession(demoUser, `demo-token-${demoUser.id}`, true);
     showToast(`Signed in as demo traveler ${demoUser.name}!`, 'success');
+    api.switchPersona(demoUser.id)
+      .then(res => {
+        if (res && res.token) {
+          saveSession(res.data || demoUser, res.token, true);
+        }
+      })
+      .catch(() => {});
     return demoUser;
   };
 

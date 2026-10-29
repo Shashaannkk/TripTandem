@@ -63,6 +63,16 @@ export const TripProvider = ({ children }) => {
     };
   }, []);
 
+  // Sync socket authentication token dynamically when user logs in or switches
+  useEffect(() => {
+    if (!socket) return;
+    const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
+    socket.auth = { token: token || undefined };
+    if (!socket.connected) {
+      socket.connect();
+    }
+  }, [socket, currentUser]);
+
   // Cross-Tab Broadcast Helper (0ms latency local synchronization across windows/tabs)
   const broadcastSync = (data) => {
     try {
@@ -136,33 +146,51 @@ export const TripProvider = ({ children }) => {
     };
   }, [trip?.id, currentUser?.id]);
 
-  // Reflect logged-in user (Google account name, avatar, email) across trip members and expense splits
+  // Reflect logged-in user profile across trip members
   useEffect(() => {
     if (!currentUser) return;
     setTrip((prev) => {
       if (!prev || !prev.members) return prev;
       const index = prev.members.findIndex(
-        (m) => m.id === currentUser.id || m.email?.toLowerCase() === currentUser.email?.toLowerCase()
+        (m) => (m.id && currentUser.id && String(m.id) === String(currentUser.id)) ||
+               (m.email && currentUser.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
       );
       if (index >= 0) {
+        const existing = prev.members[index];
         const updated = [...prev.members];
-        updated[index] = { ...updated[index], ...currentUser };
-        return { ...prev, members: updated };
-      } else {
-        const otherMembers = prev.members.filter((m) => m.id !== 'user-alex');
-        return {
-          ...prev,
-          members: [{ ...currentUser, role: 'Owner' }, ...otherMembers],
+        updated[index] = {
+          ...existing,
+          name: currentUser.name || existing.name,
+          avatar: currentUser.avatar || existing.avatar,
+          color: currentUser.color || existing.color,
+          email: currentUser.email || existing.email,
         };
+        return { ...prev, members: updated };
       }
+      return prev;
     });
   }, [currentUser]);
 
   // Sync Trip Room on Socket
   useEffect(() => {
-    if (!socket || !trip?.id || !currentUser) return;
+    if (!socket || !trip?.id) return;
 
-    socket.emit('join_trip', { tripId: trip.id, user: currentUser });
+    const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
+    const joinPayload = { tripId: trip.id, user: currentUser, token: token || undefined };
+
+    const emitJoin = () => {
+      socket.emit('join_trip', joinPayload, (ack) => {
+        if (ack && ack.success) {
+          if (ack.trip) setTrip(ack.trip);
+          if (ack.activeUsers) setActiveCollaborators(ack.activeUsers);
+        }
+      });
+    };
+
+    if (socket.connected) {
+      emitJoin();
+    }
+    socket.on('connect', emitJoin);
 
     const handlePresence = ({ activeUsers, joinedUser, leftUser }) => {
       if (activeUsers) setActiveCollaborators(activeUsers);
@@ -429,6 +457,7 @@ export const TripProvider = ({ children }) => {
 
     return () => {
       clearInterval(pingInterval);
+      socket.off('connect', emitJoin);
       socket.off('presence_sync', handlePresence);
       socket.off('itinerary_synced', handleItinerarySynced);
       socket.off('trip.board.updated', handleBoardUpdated);
@@ -844,10 +873,12 @@ export const TripProvider = ({ children }) => {
       return next;
     });
 
-    if (socket) {
+    if (socket && trip?.id) {
+      const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
       socket.emit('send_message', {
         tripId: trip.id,
         message: newMsg,
+        token: token || undefined,
       });
     }
 
@@ -879,11 +910,13 @@ export const TripProvider = ({ children }) => {
     });
 
     if (socket && trip) {
+      const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
       socket.emit('message_reaction', {
         tripId: trip.id,
         messageId,
         emoji,
         user: { id: currentUser.id, name: currentUser.name },
+        token: token || undefined,
       });
     }
   };
@@ -1001,14 +1034,16 @@ export const TripProvider = ({ children }) => {
 
     // Emit live socket events
     if (socket) {
-      socket.emit('join_trip', { tripId: targetTrip.id, user: currentUser });
-      socket.emit('member_join', { tripId: targetTrip.id, member: newMemberObj, trip: targetTrip });
-      socket.emit('send_message', { tripId: targetTrip.id, message: joinMsg });
+      const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
+      socket.emit('join_trip', { tripId: targetTrip.id, user: currentUser, token: token || undefined });
+      socket.emit('member_join', { tripId: targetTrip.id, member: newMemberObj, trip: targetTrip, token: token || undefined });
+      socket.emit('send_message', { tripId: targetTrip.id, message: joinMsg, token: token || undefined });
       socket.emit('itinerary_change', {
         tripId: targetTrip.id,
         trip: targetTrip,
         changeDescription: `${memberName} joined the trip room`,
         updatedBy: currentUser,
+        token: token || undefined,
       });
     }
 

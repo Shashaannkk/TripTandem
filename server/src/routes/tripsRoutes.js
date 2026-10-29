@@ -181,9 +181,25 @@ router.post('/join-by-code', optionalAuthToken, async (req, res) => {
     metadata: { name: newMemberObj.name, role: newMemberObj.role },
   });
 
+  const joinMsg = {
+    id: `msg-sys-${Date.now()}-${uuidv4().slice(0, 4)}`,
+    tripId: trip.id,
+    senderId: 'system',
+    senderName: 'Trip Concierge',
+    senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    text: `${newMemberObj.name} joined the trip room as ${newMemberObj.role}! 🎉 Let's collaborate.`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    isSystem: true,
+  };
+
+  if (!updatedTrip.chat) updatedTrip.chat = [];
+  updatedTrip.chat.push(joinMsg);
+  await dataService.updateTrip(trip.id, { chat: updatedTrip.chat });
+
   const io = req.app.get('io');
   if (io) {
     io.to(`trip_${trip.id}`).emit('member_joined', { trip: updatedTrip, newMember: newMemberObj });
+    io.to(`trip_${trip.id}`).emit('new_message', { message: joinMsg });
   }
 
   res.json({
