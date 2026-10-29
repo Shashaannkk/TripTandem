@@ -14,6 +14,10 @@ const expenseSchema = new mongoose.Schema(
     date: { type: String, default: () => new Date().toISOString().split('T')[0] },
     type: { type: String, default: 'actual' },
     receipt: { type: String, default: null },
+    receiptUrl: { type: String, default: null },
+    paymentProof: { type: String, default: null },
+    transactionId: { type: String, default: null },
+    notes: { type: String, default: '' },
     verified: { type: Boolean, default: false },
   },
   { _id: false }

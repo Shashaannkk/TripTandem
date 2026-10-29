@@ -22,15 +22,28 @@ export class AnalyticsService {
     const planningDays = activeDates.size;
 
     // 2. Planning actions by member
-    const actionsByMember = {};
+    const actionsByMemberMap = {};
     const uniqueActors = new Set();
+    let totalNonSystemActions = 0;
 
     events.forEach(e => {
       const actor = e.actorId || 'system';
       if (actor !== 'system') {
         uniqueActors.add(actor);
+        totalNonSystemActions++;
       }
-      actionsByMember[actor] = (actionsByMember[actor] || 0) + 1;
+      actionsByMemberMap[actor] = (actionsByMemberMap[actor] || 0) + 1;
+    });
+
+    const actionsByMember = (trip.members || []).map(m => {
+      const count = actionsByMemberMap[m.id] || actionsByMemberMap[m.name] || 0;
+      const percentage = totalNonSystemActions > 0 ? Math.round((count / totalNonSystemActions) * 100) : 0;
+      return {
+        userId: m.id || m.name,
+        name: m.name,
+        actionCount: count,
+        percentage,
+      };
     });
 
     // 3. Peak planners count: Maximum concurrent active collaborators or distinct participants
@@ -60,7 +73,7 @@ export class AnalyticsService {
       const paid = expenses
         .filter(exp => exp.paidBy === m.name || exp.paidBy === m.id)
         .reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
-      const actions = actionsByMember[m.id] || actionsByMember[m.name] || 0;
+      const actions = actionsByMemberMap[m.id] || actionsByMemberMap[m.name] || 0;
       return {
         id: m.id,
         name: m.name,
@@ -90,6 +103,8 @@ export class AnalyticsService {
       }
     });
 
+    const peakPlanningHourStr = `${peakHour.toString().padStart(2, '0')}:00 UTC`;
+
     return {
       tripId,
       title: trip.title,
@@ -105,8 +120,30 @@ export class AnalyticsService {
       totalBudget,
       spentTotal,
       perPersonShare,
-      peakPlanningHourUTC: `${peakHour.toString().padStart(2, '0')}:00 UTC`,
+      peakPlanningHourUTC: peakPlanningHourStr,
       memberBreakdown,
+      actionsByMember,
+      summary: {
+        activePlanningDays: planningDays,
+        uniqueActiveMembers: peakPlanners,
+        aiQuestionsAsked,
+        conflictsResolved,
+        totalVotesCast: votesCast,
+        peakActivityPeriod: peakPlanningHourStr,
+        totalEvents: events.length,
+      },
+      budgetMetrics: {
+        totalTarget: totalBudget,
+        totalSpent: spentTotal,
+        perPersonShare,
+        memberShares: memberBreakdown.map(m => ({
+          userId: m.id || m.name,
+          name: m.name,
+          paid: m.paid,
+          share: m.share,
+          netBalance: m.paid - m.share,
+        })),
+      },
       recentEvents: events.slice(-15).reverse(),
       hasActivity: events.length > 0,
     };

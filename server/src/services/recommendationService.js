@@ -16,27 +16,28 @@ export class RecommendationService {
    */
   static async getRecommendationsForGroup(trip, options = {}) {
     const { limit = 8, dietaryTags = [], maxPrice = null } = options;
+    const tripObj = typeof trip === 'string' ? await dataService.getTripById(trip) : trip;
     const allVenues = await dataService.listVenues();
     const allInteractions = await dataService.getAllInteractions();
 
-    if (!trip || !Array.isArray(allVenues) || allVenues.length === 0) {
+    if (!tripObj || !Array.isArray(allVenues) || allVenues.length === 0) {
       return [];
     }
 
-    const destination = (trip.destination || '').toLowerCase();
+    const destination = (tripObj.destination || '').toLowerCase();
     const destCity = destination.split(',')[0].trim();
 
     // Collect all venue IDs already pinned in any day of the trip
     const pinnedVenueIds = new Set();
-    (trip.days || []).forEach(day => {
+    (tripObj.days || []).forEach(day => {
       (day.items || []).forEach(item => {
         if (item.venueId) pinnedVenueIds.add(String(item.venueId));
       });
     });
 
     // Extract trip members
-    const memberIds = new Set((trip.members || []).map(m => m.id));
-    const memberNames = new Set((trip.members || []).map(m => (m.name || '').toLowerCase()));
+    const memberIds = new Set((tripObj.members || []).map(m => m.id));
+    const memberNames = new Set((tripObj.members || []).map(m => (m.name || '').toLowerCase()));
 
     // Group interaction profile
     const groupInteractions = allInteractions.filter(
@@ -51,7 +52,7 @@ export class RecommendationService {
       categoryAffinity[cat] = (categoryAffinity[cat] || 0) + weight;
     });
 
-    (trip.days || []).forEach(day => {
+    (tripObj.days || []).forEach(day => {
       (day.items || []).forEach(item => {
         const cat = item.category || 'attraction';
         categoryAffinity[cat] = (categoryAffinity[cat] || 0) + 1.5;
@@ -137,7 +138,7 @@ export class RecommendationService {
       if (memberDirectInteractions.length > 0) {
         collabScore = 0.7 + Math.min(memberDirectInteractions.length * 0.15, 0.3);
         memberDirectInteractions.forEach(act => {
-          const m = (trip.members || []).find(mem => mem.id === act.userId);
+          const m = (tripObj.members || []).find(mem => mem.id === act.userId);
           if (m && !matchedMembers.includes(m.name)) matchedMembers.push(m.name);
         });
       } else {
@@ -167,15 +168,20 @@ export class RecommendationService {
       } else if (catCount > 2) {
         explanation = `Popular ${cat} pick matching your group's interest in ${cat}`;
       } else if (rating >= 4.7) {
-        explanation = `Exceptional ${rating}★ rating from verified travelers in ${destCity}`;
+        const destSuffix = destCity ? ` in ${destCity}` : '';
+        explanation = `Exceptional ${rating}★ rating from verified travelers${destSuffix}`;
       } else {
         explanation = `Handpicked ${cat} venue fitting your group itinerary & budget`;
       }
+
+      const percentage = Math.min(100, Math.max(10, Math.round(finalScore * 100)));
 
       return {
         ...venue,
         id: vId,
         matchScore: Number(finalScore.toFixed(3)),
+        matchPercentage: percentage,
+        finalScore: Number(finalScore.toFixed(3)),
         contentScore: Number(contentScore.toFixed(3)),
         collabScore: Number(collabScore.toFixed(3)),
         explanation,

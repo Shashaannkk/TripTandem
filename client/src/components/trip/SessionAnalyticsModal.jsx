@@ -65,24 +65,28 @@ export const SessionAnalyticsModal = ({ trip, onClose }) => {
   const localAiCount = (trip.chat || []).filter(m => m.isAi || m.text?.toLowerCase().includes('suggest')).length;
   
   // Real metrics derived from either backend event log or trip state
-  const activePlanningDays = analytics?.summary?.activePlanningDays ?? Math.max(1, trip.daysCount || 1);
-  const activeMembersCount = analytics?.summary?.uniqueActiveMembers ?? (trip.members?.length || 1);
-  const aiQuestionsAsked = analytics?.summary?.aiQuestionsAsked ?? localAiCount;
-  const conflictsResolved = analytics?.summary?.conflictsResolved ?? 0;
-  const totalVotesCast = analytics?.summary?.totalVotesCast ?? 0;
-  const peakPeriod = analytics?.summary?.peakActivityPeriod ?? 'Evening (18:00 - 21:00)';
-  const totalEvents = analytics?.summary?.totalEvents ?? 0;
+  const activePlanningDays = analytics?.summary?.activePlanningDays ?? analytics?.planningDays ?? Math.max(1, trip.daysCount || 1);
+  const activeMembersCount = analytics?.summary?.uniqueActiveMembers ?? analytics?.peakPlanners ?? (trip.members?.length || 1);
+  const aiQuestionsAsked = analytics?.summary?.aiQuestionsAsked ?? analytics?.aiQuestionsAsked ?? localAiCount;
+  const conflictsResolved = analytics?.summary?.conflictsResolved ?? analytics?.conflictsResolved ?? 0;
+  const totalVotesCast = analytics?.summary?.totalVotesCast ?? analytics?.votesCast ?? 0;
+  const peakPeriod = analytics?.summary?.peakActivityPeriod ?? analytics?.peakPlanningHourUTC ?? 'Evening (18:00 - 21:00)';
+  const totalEvents = analytics?.summary?.totalEvents ?? analytics?.totalEvents ?? 0;
 
   // Member shares from backend analytics or local BudgetEngine
   const memberBalances = analytics?.budgetMetrics?.memberShares || 
     (trip.members || []).map(m => {
-      const b = localBudgetSummary.memberBalances?.[m.id || m.name] || { paidPaise: 0, sharePaise: 0, netPaise: 0 };
+      const b = (localBudgetSummary?.memberBalances || []).find(
+        item => item.id === m.id || item.name === m.name
+      );
       return {
         userId: m.id || m.name,
         name: m.name,
-        paid: b.paidPaise / 100,
-        share: b.sharePaise / 100,
-        netBalance: b.netPaise / 100,
+        avatar: m.avatar,
+        role: m.role,
+        paid: b ? (b.paid ?? (b.paidPaise ? b.paidPaise / 100 : 0)) : 0,
+        share: b ? (b.shareOwed ?? (b.sharePaise ? b.sharePaise / 100 : 0)) : 0,
+        netBalance: b ? (b.balance ?? (b.balancePaise ? b.balancePaise / 100 : 0)) : 0,
       };
     });
 

@@ -260,7 +260,16 @@ export const TripProvider = ({ children }) => {
 
     const handleBudgetSynced = ({ budget, user }) => {
       if (budget) {
-        setTrip(prev => ({ ...prev, budget }));
+        setTrip(prev => ({
+          ...prev,
+          budget: {
+            ...prev?.budget,
+            ...budget,
+            expenses: (budget.expenses && budget.expenses.length > 0)
+              ? budget.expenses
+              : (prev?.budget?.expenses || []),
+          },
+        }));
         if (user && user.id !== currentUser?.id) {
           showToast(`${user.name} recorded an expense 💳`, 'info');
         }

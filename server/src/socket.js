@@ -64,7 +64,9 @@ export function setupSocketIO(io) {
     }
 
     const member = (trip.members || []).find(
-      m => m.id === socket.user.id || (m.email && m.email.toLowerCase() === socket.user.email.toLowerCase())
+      m => m.id === socket.user.id ||
+           (m.email && socket.user.email && m.email.toLowerCase() === socket.user.email.toLowerCase()) ||
+           (m.name && socket.user.name && m.name.toLowerCase() === socket.user.name.toLowerCase())
     );
 
     if (!member) {
@@ -74,8 +76,7 @@ export function setupSocketIO(io) {
     const effectiveRole = member.role || 'Planner';
     const isAllowed =
       allowedRoles.includes(effectiveRole) ||
-      effectiveRole === 'Owner' ||
-      effectiveRole === 'Leader';
+      ((effectiveRole === 'Owner' || effectiveRole === 'Leader') && !allowedRoles.every(r => r === 'Admin'));
 
     if (!isAllowed) {
       return {
@@ -200,6 +201,7 @@ export function setupSocketIO(io) {
 
       if (!result.success) {
         if (result.conflict) {
+          const clientVersion = positionVersion !== undefined ? positionVersion : payload?.clientVersion;
           await dataService.recordEvent({
             tripId,
             type: 'conflict.flagged',
@@ -481,9 +483,34 @@ export function setupSocketIO(io) {
       }
 
       const trip = await dataService.getTripById(tripId);
-      if (trip && budget) {
-        trip.budget = budget;
-        await dataService.updateTrip(tripId, { budget });
+      if (trip) {
+        if (budget) {
+          trip.budget = budget;
+        }
+        if (expense) {
+          if (!trip.budget) trip.budget = { expenses: [] };
+          if (!Array.isArray(trip.budget.expenses)) trip.budget.expenses = [];
+          const exists = trip.budget.expenses.some(e => e.id === expense.id);
+          if (!exists) {
+            trip.budget.expenses.push(expense);
+          }
+        }
+        await dataService.updateTrip(tripId, { budget: trip.budget });
+      }
+
+      // Record event for session analytics
+      if (expense) {
+        await dataService.recordEvent({
+          tripId,
+          type: 'budget.expense.created',
+          actorId: socket.user?.id || socket.user?.name,
+          metadata: {
+            expenseId: expense.id,
+            amount: expense.amount,
+            category: expense.category,
+            title: expense.title,
+          },
+        });
       }
 
       const reconciledBudget = BudgetEngine.reconcileTripBudget(trip);

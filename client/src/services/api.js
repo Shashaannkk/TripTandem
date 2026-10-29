@@ -906,11 +906,17 @@ export const api = {
   // Hybrid Group Recommendations (PRD Feature 5)
   async getGroupRecommendations(tripId, params = {}) {
     try {
-      const query = new URLSearchParams(params).toString();
+      const queryParams = typeof params === 'number'
+        ? { limit: params }
+        : (params || {});
+      const query = new URLSearchParams(queryParams).toString();
       const res = await authFetch(`${BASE_URL}/trips/${tripId}/recommendations?${query}`);
       if (res && res.ok) {
         const data = await safeJson(res);
-        if (data && data.success) return data.data;
+        if (data && data.success) {
+          const list = data.data || data.recommendations || [];
+          return Array.isArray(list) ? list : [];
+        }
       }
     } catch (e) {
       console.warn('Group recommendations fetch error:', e);

@@ -53,10 +53,13 @@ export class BudgetEngine {
       let totalWeight = 0;
 
       for (const p of participants) {
-        const w = Number(splits[p]);
-        if (isNaN(w) || w < 0 || !isFinite(w)) {
+        const rawW = (splits instanceof Map || typeof splits?.get === 'function')
+          ? splits.get(p)
+          : splits[p];
+        const w = Number(rawW);
+        if (isNaN(w) || w < 0 || !isFinite(w) || rawW === null || rawW === undefined) {
           throw new Error(
-            `Participant "${p}" has an invalid weight: ${splits[p]}. Weights must be non-negative finite numbers.`
+            `Participant "${p}" has an invalid weight: ${rawW}. Weights must be non-negative finite numbers.`
           );
         }
         weights.push({ participant: p, weight: w });
@@ -101,6 +104,51 @@ export class BudgetEngine {
     }
 
     return sharesInPaise;
+  }
+
+  /**
+   * Validate custom weights mapping across participants.
+   *
+   * @param {Object|Map} weights
+   * @param {string[]} [participants]
+   * @returns {{ valid: boolean, error?: string, normalized?: Record<string, number>, totalWeight?: number }}
+   */
+  static validateCustomWeights(weights, participants = []) {
+    if (!weights || typeof weights !== 'object') {
+      return { valid: false, error: 'Weights must be an object or Map.' };
+    }
+
+    const keys = Array.isArray(participants) && participants.length > 0
+      ? participants
+      : (weights instanceof Map ? Array.from(weights.keys()) : Object.keys(weights));
+
+    if (keys.length === 0) {
+      return { valid: false, error: 'No participants provided for weights.' };
+    }
+
+    let totalWeight = 0;
+    const normalized = {};
+
+    for (const key of keys) {
+      const rawVal = (weights instanceof Map || typeof weights?.get === 'function')
+        ? weights.get(key)
+        : weights[key];
+      const w = Number(rawVal);
+      if (isNaN(w) || w < 0 || !isFinite(w) || rawVal === null || rawVal === undefined) {
+        return {
+          valid: false,
+          error: `Participant "${key}" has an invalid weight: ${rawVal}. Weights must be non-negative finite numbers.`
+        };
+      }
+      normalized[key] = w;
+      totalWeight += w;
+    }
+
+    if (totalWeight <= 0) {
+      return { valid: false, error: 'Total weight across participants must be greater than zero.' };
+    }
+
+    return { valid: true, normalized, totalWeight };
   }
 
   /**
@@ -223,6 +271,7 @@ export class BudgetEngine {
       perPersonEstimated: Math.round(totalEstimated / memberCount),
       categories,
       splitMode,
+      expenses,
       memberBalances,
       optimalSettlements,
       zeroSumReconciled: true,

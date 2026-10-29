@@ -10,9 +10,10 @@ const interactionSchema = new mongoose.Schema(
     category: { type: String, default: 'attraction' },
     interactionType: {
       type: String,
-      enum: ['like', 'save', 'pin', 'view', 'vote_up', 'vote_down'],
+      enum: ['like', 'save', 'pin', 'view', 'vote_up', 'vote_down', 'book', 'co_travel', 'comment'],
       default: 'like',
     },
+    rating: { type: Number, min: 1, max: 5 },
     weight: { type: Number, default: 1 },
     coTraveledWith: { type: [String], default: [] },
     timestamp: { type: Date, default: Date.now, index: true },

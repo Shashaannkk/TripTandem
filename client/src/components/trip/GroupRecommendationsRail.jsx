@@ -39,9 +39,12 @@ export const GroupRecommendationsRail = () => {
     const fetchRecommendations = async () => {
       try {
         setLoading(true);
-        const data = await api.getGroupRecommendations(trip.id, 8);
+        const data = await api.getGroupRecommendations(trip.id, { limit: 8 });
         if (isMounted) {
-          setRecommendations(data.recommendations || []);
+          const list = Array.isArray(data)
+            ? data
+            : (data?.recommendations || data?.data || []);
+          setRecommendations(list);
           setError(null);
         }
       } catch (err) {
@@ -174,7 +177,7 @@ export const GroupRecommendationsRail = () => {
                     />
                     <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-navy/80 backdrop-blur-md text-white text-[10px] font-bold">
                       <Sparkles className="w-3 h-3 text-brand-orange" />
-                      <span>{rec.matchPercentage}% Group Fit</span>
+                      <span>{rec.matchPercentage ?? Math.round((rec.matchScore || 0.85) * 100)}% Group Fit</span>
                     </div>
 
                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-brand-navy dark:text-white text-[10px] font-bold shadow-xs">

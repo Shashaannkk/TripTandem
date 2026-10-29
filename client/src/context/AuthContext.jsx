@@ -192,7 +192,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 4. Logout
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.logoutSession();
+    } catch (e) {
+      console.warn('Logout session error:', e);
+    }
     localStorage.removeItem('tt_token');
     localStorage.removeItem('tt_current_user');
     sessionStorage.removeItem('tt_token');

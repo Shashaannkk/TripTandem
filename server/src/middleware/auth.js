@@ -180,7 +180,9 @@ export function requireTripMember(allowedRoles = null) {
     }
 
     const member = (trip.members || []).find(
-      m => m.id === req.user.id || (m.email && m.email.toLowerCase() === req.user.email.toLowerCase())
+      m => m.id === req.user.id ||
+           (m.email && req.user.email && m.email.toLowerCase() === req.user.email.toLowerCase()) ||
+           (m.name && req.user.name && m.name.toLowerCase() === req.user.name.toLowerCase())
     );
 
     if (!member) {
@@ -194,7 +196,9 @@ export function requireTripMember(allowedRoles = null) {
     const effectiveRole = member.role || 'Planner';
 
     if (allowedRoles && allowedRoles.length > 0) {
-      const isAllowed = allowedRoles.includes(effectiveRole) || effectiveRole === 'Owner' || effectiveRole === 'Leader';
+      const isAllowed =
+        allowedRoles.includes(effectiveRole) ||
+        ((effectiveRole === 'Leader' || effectiveRole === 'Owner') && !allowedRoles.every(r => r === 'Admin'));
       if (!isAllowed) {
         return res.status(403).json({
           success: false,
