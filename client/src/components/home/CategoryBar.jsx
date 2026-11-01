@@ -32,7 +32,7 @@ export const CategoryBar = ({ selectedCategory = 'all', onSelectCategory }) => {
   return (
     <div className="w-full bg-white border-y border-brand-sand-border sticky top-20 z-30 shadow-subtle">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-3.5 scroll-smooth">
+        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-3">
           {CATEGORIES.map((cat) => {
             const Icon = iconMap[cat.icon] || Sparkles;
             const isSelected = selectedCategory === cat.id;

@@ -155,7 +155,94 @@ export class RecommendationService {
       }
 
       // ---------------------------------------------------------------
-      // STEP 4: Hybrid Score & Explanation Generation
+      // STEP 4: Multi-Member Group Fit Consensus & Itinerary Integration
+      // ---------------------------------------------------------------
+      const members = tripObj.members || [];
+      const perPersonBudget = Math.round((tripObj.budget?.totalTarget || 40000) / Math.max(members.length, 1));
+
+      const memberBreakdown = members.map(mem => {
+        const memInteractions = allInteractions.filter(act => act.userId === mem.id);
+        const hasDirectAction = memInteractions.some(act => String(act.venueId) === vId);
+        const hasCategoryAction = memInteractions.some(act => act.category === cat);
+        const prefScore = hasDirectAction ? 1.0 : hasCategoryAction ? 0.88 : 0.65;
+
+        let bScore = 1.0;
+        if (price > perPersonBudget * 0.4) {
+          bScore = 0.6;
+        } else if (price > perPersonBudget * 0.25) {
+          bScore = 0.8;
+        }
+
+        const venueDiet = (venue.dietaryTags || venue.dietary || []).map(t => String(t).toLowerCase());
+        const dietScore = venueDiet.length > 0 ? 1.0 : 0.85;
+
+        const memberFit = 0.5 * prefScore + 0.3 * bScore + 0.2 * dietScore;
+        const alignment = memberFit >= 0.82 ? 'High' : memberFit >= 0.68 ? 'Moderate' : 'Neutral';
+
+        return {
+          memberId: mem.id,
+          name: mem.name,
+          fitScore: Math.round(memberFit * 100),
+          alignment,
+        };
+      });
+
+      const avgMemberFit = memberBreakdown.length > 0
+        ? memberBreakdown.reduce((acc, m) => acc + m.fitScore, 0) / memberBreakdown.length
+        : 75;
+      const minMemberFit = memberBreakdown.length > 0
+        ? Math.min(...memberBreakdown.map(m => m.fitScore))
+        : 70;
+      const groupFitScore = Math.round(0.75 * avgMemberFit + 0.25 * minMemberFit);
+
+      // Balanced Day Scheduling: Suggest day with lightest activity count
+      let suggestedDay = 1;
+      let minDayItems = Infinity;
+      (tripObj.days || []).forEach(d => {
+        const count = (d.items || []).length;
+        if (count < minDayItems) {
+          minDayItems = count;
+          suggestedDay = d.dayNumber;
+        }
+      });
+
+      // Map venue category to natural time slot and recommended time
+      let suggestedTimeSlot = 'afternoon';
+      let proposedTime = '02:00 PM';
+      let duration = '2 hours';
+      const lowerCat = String(cat).toLowerCase();
+      const lowerName = String(venue.name || '').toLowerCase();
+
+      if (lowerCat.includes('food') || lowerCat.includes('dining') || lowerCat.includes('restaurant') || lowerCat.includes('cafe')) {
+        if (lowerName.includes('cafe') || lowerName.includes('breakfast') || lowerName.includes('bakery')) {
+          suggestedTimeSlot = 'morning';
+          proposedTime = '09:30 AM';
+          duration = '1 hour';
+        } else if (lowerName.includes('bistro') || lowerName.includes('lunch') || lowerName.includes('beach shack')) {
+          suggestedTimeSlot = 'afternoon';
+          proposedTime = '01:30 PM';
+          duration = '90 mins';
+        } else {
+          suggestedTimeSlot = 'evening';
+          proposedTime = '08:00 PM';
+          duration = '2 hours';
+        }
+      } else if (lowerCat.includes('night') || lowerCat.includes('pub') || lowerCat.includes('bar') || lowerCat.includes('club')) {
+        suggestedTimeSlot = 'night';
+        proposedTime = '10:00 PM';
+        duration = '3 hours';
+      } else if (lowerCat.includes('hotel') || lowerCat.includes('resort') || lowerCat.includes('villa') || lowerCat.includes('stay')) {
+        suggestedTimeSlot = 'morning';
+        proposedTime = '11:00 AM';
+        duration = 'Check-in';
+      } else {
+        suggestedTimeSlot = 'afternoon';
+        proposedTime = '03:30 PM';
+        duration = '2.5 hours';
+      }
+
+      // ---------------------------------------------------------------
+      // STEP 5: Hybrid Score & Explanation Generation
       // ---------------------------------------------------------------
       const isColdStart = groupInteractions.length === 0;
       const finalScore = isColdStart
@@ -184,6 +271,16 @@ export class RecommendationService {
         finalScore: Number(finalScore.toFixed(3)),
         contentScore: Number(contentScore.toFixed(3)),
         collabScore: Number(collabScore.toFixed(3)),
+        groupFitScore,
+        groupFitPercentage: groupFitScore,
+        groupFitBreakdown: memberBreakdown,
+        itinerarySlot: {
+          suggestedDay,
+          suggestedTimeSlot,
+          proposedTime,
+          duration,
+          estimatedCostPerPerson: price,
+        },
         explanation,
       };
     });

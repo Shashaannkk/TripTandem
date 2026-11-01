@@ -68,14 +68,21 @@ export const GroupRecommendationsRail = () => {
   const handleAddVenue = (venue) => {
     if (addedIds.has(venue.id)) return;
 
-    addActivity(currentDay.dayNumber, 'afternoon', {
+    const slot = venue.itinerarySlot || {};
+    const targetSlot = slot.suggestedTimeSlot || 'afternoon';
+    const targetTime = slot.proposedTime || '02:00 PM';
+    const targetDuration = slot.duration || '2 hours';
+
+    addActivity(currentDay.dayNumber, targetSlot, {
       venueId: venue.id,
       venueName: venue.name,
       title: venue.name,
       category: venue.category || 'experience',
-      costPerPerson: venue.price || 0,
+      startTime: targetTime,
+      duration: targetDuration,
+      costPerPerson: venue.price || slot.estimatedCostPerPerson || 0,
       image: venue.images?.[0] || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
-      notes: `Recommended for group fit (${venue.matchPercentage || 85}% match): ${venue.explanation || ''}`,
+      notes: `Recommended for group fit (${venue.groupFitPercentage || venue.matchPercentage || 85}% match): ${venue.explanation || ''}`,
     });
 
     setAddedIds(prev => new Set(prev).add(venue.id));
@@ -177,7 +184,7 @@ export const GroupRecommendationsRail = () => {
                     />
                     <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-navy/80 backdrop-blur-md text-white text-[10px] font-bold">
                       <Sparkles className="w-3 h-3 text-brand-orange" />
-                      <span>{rec.matchPercentage ?? Math.round((rec.matchScore || 0.85) * 100)}% Group Fit</span>
+                      <span>{rec.groupFitPercentage ?? rec.matchPercentage ?? Math.round((rec.matchScore || 0.85) * 100)}% Group Fit</span>
                     </div>
 
                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-brand-navy dark:text-white text-[10px] font-bold shadow-xs">

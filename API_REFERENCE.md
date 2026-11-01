@@ -204,18 +204,21 @@ Calculates authentic event-driven session collaboration metrics from the trip ev
 ```
 
 ### 2.8 `GET /api/trips/:id/recommendations`
-Runs the hybrid group recommendation engine balancing members' dietary tags, max budget, and collaborative travel history.
+Runs the hybrid group recommendation engine balancing members' dietary tags, max budget, collaborative travel history, multi-member group fit consensus, and proposed itinerary time slots.
 
 - **Headers:** `Authorization: Bearer <token>`
 - **Query Parameters:**
-  - `limit`: Number of candidates (default: 6)
+  - `limit`: Number of candidates (default: 8)
   - `maxPrice`: Optional hard budget ceiling (INR)
-  - `requiredDietary`: Optional dietary filter (`vegan`, `vegetarian`, `seafood`, etc.)
+  - `dietary`: Optional comma-separated dietary filters (`vegan`, `vegetarian`, `seafood`, etc.)
 - **Success Response (200 OK):**
 ```json
 {
+  "success": true,
   "tripId": "trip-goa-2026",
-  "recommendations": [
+  "destination": "Goa, India",
+  "count": 6,
+  "data": [
     {
       "id": "v-goa-1",
       "name": "Fisherman's Wharf Panaji",
@@ -223,7 +226,19 @@ Runs the hybrid group recommendation engine balancing members' dietary tags, max
       "price": 1200,
       "rating": 4.8,
       "matchPercentage": 94,
-      "finalScore": 0.94,
+      "groupFitScore": 92,
+      "groupFitPercentage": 92,
+      "groupFitBreakdown": [
+        { "memberId": "user-1", "name": "Alex Morgan", "fitScore": 95, "alignment": "High" },
+        { "memberId": "user-2", "name": "Rohan Sharma", "fitScore": 88, "alignment": "High" }
+      ],
+      "itinerarySlot": {
+        "suggestedDay": 1,
+        "suggestedTimeSlot": "evening",
+        "proposedTime": "08:00 PM",
+        "duration": "2 hours",
+        "estimatedCostPerPerson": 1200
+      },
       "explanation": "Matched because 3/4 members enjoy seafood and it fits the ₹1500/meal budget ceiling.",
       "dietaryTags": ["seafood", "gluten-free"]
     }

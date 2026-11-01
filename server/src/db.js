@@ -7,6 +7,12 @@ export async function connectDB() {
   const uri = process.env.MONGODB_URI;
 
   if (!uri || !uri.trim()) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ [Database] CRITICAL: MONGODB_URI is required in production mode. Refusing in-memory fallback.');
+      isConfigured = false;
+      isConnected = false;
+      throw new Error('MONGODB_URI must be configured in production environment. In-memory fallback is disabled in production.');
+    }
     console.log('ℹ️ [Database] MONGODB_URI not configured. Operating in zero-config In-Memory storage mode.');
     isConfigured = false;
     isConnected = false;

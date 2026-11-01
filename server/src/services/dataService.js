@@ -12,6 +12,12 @@ if (!store.events) store.events = [];
 if (!store.interactions) store.interactions = [];
 if (!store.refreshTokens) store.refreshTokens = new Map(); // userId -> [{ token, expiresAt }]
 
+function assertProductionDB() {
+  if (process.env.NODE_ENV === 'production' && !isDBConnected()) {
+    throw new Error('Database operation rejected: Persistent MongoDB connection is required in production mode. Ephemeral fallback disabled.');
+  }
+}
+
 export const dataService = {
   // -------------------------------------------------------------
   // USERS
@@ -43,6 +49,7 @@ export const dataService = {
   },
 
   async createUser(userData) {
+    assertProductionDB();
     const id = userData.id || `user-${uuidv4().slice(0, 8)}`;
     const userObj = {
       ...userData,
@@ -61,6 +68,7 @@ export const dataService = {
   },
 
   async updateUser(id, updates) {
+    assertProductionDB();
     if (isDBConnected()) {
       const updated = await User.findOneAndUpdate({ id }, { $set: updates }, { new: true }).lean();
       return updated;
@@ -73,6 +81,7 @@ export const dataService = {
 
   // Refresh Token Session Management
   async saveRefreshToken(userId, token, expiresAt) {
+    assertProductionDB();
     if (isDBConnected()) {
       await User.updateOne(
         { id: userId },
@@ -160,6 +169,7 @@ export const dataService = {
   },
 
   async createTrip(tripData) {
+    assertProductionDB();
     const tripObj = {
       ...tripData,
       id: tripData.id || `trip-${uuidv4().slice(0, 8)}`,
@@ -177,6 +187,7 @@ export const dataService = {
   },
 
   async updateTrip(id, updates) {
+    assertProductionDB();
     if (isDBConnected()) {
       return await Trip.findOneAndUpdate({ id }, { $set: updates }, { new: true }).lean();
     }
@@ -187,6 +198,7 @@ export const dataService = {
   },
 
   async addMemberToTrip(tripId, memberObj) {
+    assertProductionDB();
     if (isDBConnected()) {
       const trip = await Trip.findOne({ id: tripId });
       if (!trip) return null;
@@ -215,6 +227,7 @@ export const dataService = {
   },
 
   async updateMemberRole(tripId, memberId, newRole) {
+    assertProductionDB();
     if (isDBConnected()) {
       const trip = await Trip.findOne({ id: tripId });
       if (!trip) return null;
@@ -236,6 +249,7 @@ export const dataService = {
   },
 
   async removeMemberFromTrip(tripId, memberId) {
+    assertProductionDB();
     if (isDBConnected()) {
       const trip = await Trip.findOne({ id: tripId });
       if (!trip) return null;
@@ -263,6 +277,7 @@ export const dataService = {
   // ITINERARY ITEMS & OPTIMISTIC CONCURRENCY
   // -------------------------------------------------------------
   async addItemToTrip(tripId, dayNumber, itemData) {
+    assertProductionDB();
     const newItem = {
       id: itemData.id || `item-${uuidv4().slice(0, 8)}`,
       timeSlot: itemData.timeSlot || 'afternoon',
@@ -313,6 +328,7 @@ export const dataService = {
    * Apply an item update with strict positionVersion optimistic concurrency
    */
   async updateItemWithConcurrency(tripId, itemId, incomingUpdate) {
+    assertProductionDB();
     const { positionVersion: clientVersion, dayNumber, dayIndex, ...fields } = incomingUpdate;
 
     if (isDBConnected()) {
@@ -428,6 +444,7 @@ export const dataService = {
   },
 
   async removeItemFromTrip(tripId, itemId) {
+    assertProductionDB();
     if (isDBConnected()) {
       const trip = await Trip.findOne({ id: tripId });
       if (!trip) return null;
@@ -547,6 +564,7 @@ export const dataService = {
   },
 
   async addVenues(newVenues) {
+    assertProductionDB();
     if (isDBConnected()) {
       await VenueMetadata.insertMany(newVenues, { ordered: false }).catch(() => {});
     }

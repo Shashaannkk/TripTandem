@@ -26,7 +26,7 @@ graph TD
     subgraph CloudServer ["☁️ Live Cloud Backend (Render / Railway / VPS)"]
         ExpressApp["Express.js REST API (/api/*)"]
         SocketServer["Socket.IO Server (Persistent WebSockets)"]
-        InMemoryStore["Collaborative Trip Engine & Memory Store"]
+        MongoStore["Persistent MongoDB (Mongoose Schemas & 2dsphere Indexes)"]
     end
 
     subgraph ExternalAPIs ["🔌 Live Third-Party Providers"]
@@ -46,7 +46,8 @@ graph TD
     ExpressApp --> Amadeus
     ExpressApp --> GooglePlaces
     ExpressApp --> OSM
-    SocketServer <--> InMemoryStore
+    ExpressApp <--> MongoStore
+    SocketServer <--> MongoStore
 ```
 
 - **Frontend on Vercel**: Hosted globally on Vercel's Edge CDN. Handles rapid client-side routing, responsive UI, micro-animations, and offline resilient fallbacks.
@@ -118,6 +119,7 @@ Because Socket.IO requires persistent WebSockets for live group collaboration, d
    ```env
    NODE_ENV=production
    PORT=10000
+   MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/triptandem?retryWrites=true&w=majority
    JWT_SECRET=your_super_secret_production_key_32_chars
    CLIENT_URL=https://your-triptandem.vercel.app
    GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
@@ -198,6 +200,9 @@ VITE_GOOGLE_MAPS_API_KEY=your_google_maps_key
 PORT=3001
 NODE_ENV=production
 
+# Database (Strictly required in production)
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/triptandem?retryWrites=true&w=majority
+
 # Security & Tokens
 JWT_SECRET=long_secure_random_string_for_production
 CLIENT_URL=https://your-triptandem.vercel.app
@@ -213,6 +218,30 @@ AMADEUS_CLIENT_SECRET=your_amadeus_client_secret
 AMADEUS_BASE_URL=https://test.api.amadeus.com
 GOOGLE_MAPS_API_KEY=your_google_maps_key
 ```
+
+---
+
+## 🐳 Docker & Container Deployment
+
+TripTandem includes production-ready Docker and Docker Compose definitions for running the server alongside a dedicated MongoDB instance:
+
+### Run with Docker Compose:
+```bash
+# Build and launch both MongoDB and TripTandem backend
+docker compose up -d --build
+
+# View container logs
+docker compose logs -f server
+
+# Verify service health
+curl http://localhost:3001/api/health
+```
+
+The Docker Compose configuration:
+- Spins up `mongo:7.0` with persistent volume storage (`mongo-data`).
+- Performs automated database ping health checks.
+- Builds `server/Dockerfile` using multi-stage Node.js Alpine base.
+- Links server networking securely with container health check dependency.
 
 ---
 

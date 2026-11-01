@@ -3,8 +3,8 @@
 ## Overview
 
 TripTandem supports a dual-mode persistence architecture:
-1. **Production Mode (MongoDB & Mongoose):** Activated when `MONGODB_URI` is supplied in the environment. All entities are stored with strict schema validations, compound indexes, and 2dsphere geospatial indexing.
-2. **In-Memory Fallback Mode (`store.js`):** Activated automatically when `MONGODB_URI` is omitted or disconnected. All CRUD operations, optimistic concurrency checks, and event queries maintain strict behavioral parity through `dataService.js`.
+1. **Production Mode (MongoDB & Mongoose):** Activated when `MONGODB_URI` is supplied. In production (`NODE_ENV === 'production'`), persistent MongoDB storage is strictly enforced; omitting `MONGODB_URI` or database disconnection halts startup with a fatal error to prevent silent data loss. All entities are stored with strict schema validations, compound indexes, and 2dsphere geospatial indexing.
+2. **Development In-Memory Fallback Mode (`store.js`):** Permitted only in local development/test environments when `MONGODB_URI` is omitted. All CRUD operations, optimistic concurrency checks, and event queries maintain strict behavioral parity through `dataService.js`.
 
 ---
 
@@ -231,7 +231,9 @@ const venueMetadataSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 venueMetadataSchema.index({ location: '2dsphere' });
+venueMetadataSchema.index({ destination: 1, lat: 1, lng: 1 });
 venueMetadataSchema.index({ destination: 1, category: 1, price: 1 });
+venueMetadataSchema.index({ dietaryTags: 1 });
 ```
 
 ---

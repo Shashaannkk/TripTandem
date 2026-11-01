@@ -47,15 +47,15 @@ All 7 core features identified in the architectural audit have been completed, h
 - **Solution:** Built an immutable `EventLog` stream logging all mutations (`itinerary.item.reordered`, `ai.question`, `vote.cast`, `conflict.resolved`). `AnalyticsService` computes active planning days from distinct event timestamps, member participation percentages, peak planning hours, AI question tallies, and conflict counts from raw audit logs.
 - **Verification:** Replaced static values in `SessionAnalyticsModal.jsx` with real event queries; tested event increment propagation in end-to-end suite.
 
-### 1.5 Hybrid Group Recommendation Engine
-- **Problem:** The recommendation engine lacked group preference aggregation and had no measured offline evaluation benchmark.
-- **Solution:** Built `RecommendationService` blending content-based similarity (category, amenities, ratings) with collaborative travel history and hard constraint filtering (budget ceilings, dietary tags, deduplication of already pinned venues). Created `test_recommendation_eval.js` evaluating Precision@5 on a held-out test interaction benchmark.
-- **Outcome:** Measured **Precision@5: 78.0%**, surpassing the PRD threshold ($\ge 60.0\%$). Added a responsive "Recommended for Your Group" UI rail in the trip workspace with match percentages and human-readable explanations.
+### 1.5 Hybrid Group Recommendation Engine & Group Fit
+- **Problem:** The recommendation engine lacked group preference aggregation, had no explicit multi-member group fit scoring, was disconnected from itinerary time slot integration, and had no measured offline evaluation benchmark.
+- **Solution:** Built `RecommendationService` blending content-based similarity (category, amenities, ratings) with collaborative travel history, multi-member consensus scoring (`groupFitScore`, `groupFitBreakdown`), balanced day scheduling (`itinerarySlot.suggestedDay`), and natural category-to-slot mapping (`morning`/`afternoon`/`evening`/`night`). Created `test_recommendation_eval.js` evaluating Precision@5 on a held-out test interaction benchmark and `test_group_fit.js` verifying consensus metrics.
+- **Outcome:** Measured **Precision@5: 78.0%**, surpassing the PRD threshold ($\ge 60.0\%$). Embedded the responsive `GroupRecommendationsRail.jsx` in the itinerary workspace with 1-click "Add to Day X" itinerary insertion.
 
-### 1.6 Persistent MongoDB/Mongoose Data Layer
-- **Problem:** Data was stored strictly in-memory without Mongoose schemas, compound indexes, or database persistence.
-- **Solution:** Implemented 6 core PRD Mongoose models (`User`, `Trip`, `ItineraryItem`, `VenueMetadata`, `ChatMessage`, `Interaction`) plus `EventLog` with 2dsphere geospatial coordinates and compound indexes. Designed `dataService.js` to operate in dual-mode: persistent MongoDB when `MONGODB_URI` is provided, and in-memory `store.js` when running locally without a database.
-- **Verification:** Models validated against Mongoose schema definitions; seed runner verified with `node server/seed.js`.
+### 1.6 Persistent MongoDB/Mongoose Data Layer & Production Hardening
+- **Problem:** Data was previously stored strictly in-memory without Mongoose schemas, compound indexes, or database persistence, with a silent fallback that could cause data loss across production container restarts.
+- **Solution:** Implemented 6 core PRD Mongoose models (`User`, `Trip`, `ItineraryItem`, `VenueMetadata`, `ChatMessage`, `Interaction`) plus `EventLog` with 2dsphere geospatial coordinates and compound indexes. Hardened `db.js` and `dataService.js` to strictly enforce persistent MongoDB in `NODE_ENV === 'production'` while permitting zero-config in-memory mode only during local development and testing. Added multi-stage `Dockerfile` and `docker-compose.yml`.
+- **Verification:** Verified with `test_persistent_storage.js`, schema validations, and seed runner (`node server/seed.js`).
 
 ---
 

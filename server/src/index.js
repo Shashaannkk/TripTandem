@@ -80,12 +80,19 @@ const PORT = process.env.PORT || 3001;
 
 // Connect to MongoDB if MONGODB_URI is provided
 connectDB()
-  .catch((err) => {
-    console.error('Fatal database startup failure:', err.message);
-  })
-  .finally(() => {
+  .then(() => {
     server.listen(PORT, () => {
       console.log(`✨ TripTandem Backend Server listening on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Fatal database startup failure:', err.message);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Refusing to start production server without persistent database connection.');
+      process.exit(1);
+    }
+    server.listen(PORT, () => {
+      console.log(`✨ TripTandem Backend Server listening on http://localhost:${PORT} (Development in-memory fallback)`);
     });
   });
 

@@ -64,6 +64,7 @@ const venueMetadataSchema = new mongoose.Schema(
 );
 
 venueMetadataSchema.index({ location: '2dsphere' });
+venueMetadataSchema.index({ destination: 1, lat: 1, lng: 1 });
 venueMetadataSchema.index({ destination: 1, category: 1 });
 venueMetadataSchema.index({ destination: 1, pricePerPerson: 1 });
 venueMetadataSchema.index({ dietaryTags: 1 });
