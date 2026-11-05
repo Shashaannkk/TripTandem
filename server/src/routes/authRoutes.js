@@ -6,6 +6,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
   authenticateToken,
+  getJwtSecret,
   JWT_SECRET,
   REFRESH_TOKEN_EXPIRY_DAYS,
 } from '../middleware/auth.js';
@@ -196,7 +197,7 @@ router.post('/refresh', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(incomingRefreshToken, JWT_SECRET);
+    const decoded = jwt.verify(incomingRefreshToken, getJwtSecret());
 
     if (decoded.type !== 'refresh' || !decoded.id) {
       return res.status(401).json({

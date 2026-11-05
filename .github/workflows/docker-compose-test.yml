@@ -1,0 +1,105 @@
+name: Docker Compose Deployment & Persistence CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docker-compose-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set Unique Project Name & Fresh JWT Secret
+        run: |
+          PROJECT_NAME="tt-ci-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "PROJECT_NAME=${PROJECT_NAME}" >> $GITHUB_ENV
+          # Generate fresh random 64-char secret without printing
+          SECRET=$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")
+          echo "JWT_SECRET=${SECRET}" >> $GITHUB_ENV
+          echo "Configured isolated project: ${PROJECT_NAME}"
+
+      - name: Validate Compose Configuration
+        run: |
+          docker compose -p "$PROJECT_NAME" config
+
+      - name: Build and Start Services (Isolated Project)
+        run: |
+          SERVER_PORT=3001 docker compose -p "$PROJECT_NAME" up -d --build
+
+      - name: Wait for Server Health (Timeout 60s)
+        run: |
+          echo "Polling server healthcheck (waiting for {\"status\":\"healthy\"})..."
+          HEALTHY=0
+          for i in {1..30}; do
+            STATUS=$(curl -s http://localhost:3001/api/health | grep '"status":"healthy"' || true)
+            if [ -n "$STATUS" ]; then
+              echo "Server reported healthy on attempt $i!"
+              HEALTHY=1
+              break
+            fi
+            echo "Waiting for server to become healthy... ($i/30)"
+            sleep 2
+          done
+          if [ $HEALTHY -ne 1 ]; then
+            echo "ERROR: Server failed to report healthy within 60 seconds."
+            docker compose -p "$PROJECT_NAME" logs
+            exit 1
+          fi
+
+      - name: Verify Live Health Endpoint
+        run: |
+          curl -f http://localhost:3001/api/health
+
+      - name: Test Persistence Through Container Restart
+        run: |
+          # 1. Generate Admin JWT with required claims using server's jsonwebtoken package
+          AUTH_TOKEN=$(node -e "
+            const path = require('path');
+            const jwt = require(path.resolve('server/node_modules/jsonwebtoken'));
+            const secret = process.env.JWT_SECRET;
+            if (!secret) {
+              console.error('JWT_SECRET missing');
+              process.exit(1);
+            }
+            process.stdout.write(jwt.sign(
+              { id: 'ci-admin-1', email: 'admin@triptandem.internal', name: 'CI Admin', role: 'Admin' },
+              secret,
+              { expiresIn: '1h' }
+            ));
+          ")
+
+          # 2. Ingest a test venue dataset via admin API
+          curl -f -X POST http://localhost:3001/api/venues/dataset/upload \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $AUTH_TOKEN" \
+            -d '{
+              "destination": "DockerCity",
+              "venues": [{
+                "name": "Docker Container Bistro",
+                "category": "dining",
+                "pricePerPerson": 800,
+                "lat": 15.5,
+                "lng": 73.8,
+                "hours": { "open": "10:00", "close": "22:00" },
+                "dietaryTags": ["vegetarian"]
+              }]
+            }'
+
+          # 3. Restart server container to ensure persistence is backed by mongo-data volume
+          docker compose -p "$PROJECT_NAME" restart server
+          sleep 5
+
+          # 4. Verify venue remains persisted in catalog after container restart
+          PERSISTED=$(curl -s "http://localhost:3001/api/venues/DockerCity/venues")
+          echo "$PERSISTED" | grep "Docker Container Bistro"
+          echo "Containerized database persistence successfully verified!"
+
+      - name: Teardown Isolated Test Services
+        if: always()
+        run: |
+          # Clean up ONLY the isolated project containers and volumes created during this run
+          docker compose -p "$PROJECT_NAME" down -v

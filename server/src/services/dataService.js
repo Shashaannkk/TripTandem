@@ -509,16 +509,12 @@ export const dataService = {
     };
 
     if (isDBConnected()) {
-      try {
-        await EventLog.create(event);
-      } catch (e) {
-        console.warn('Failed to persist EventLog:', e.message);
-      }
+      // Must not swallow errors in persistent mode
+      await EventLog.create(event);
+    } else {
+      if (!store.events) store.events = [];
+      store.events.push(event);
     }
-
-    // Always maintain in-memory log
-    if (!store.events) store.events = [];
-    store.events.push(event);
 
     return event;
   },
@@ -526,8 +522,8 @@ export const dataService = {
   async getEventsForTrip(tripId) {
     assertProductionDB();
     if (isDBConnected()) {
-      const events = await EventLog.find({ tripId }).sort({ timestamp: 1 }).lean();
-      if (events && events.length > 0) return events;
+      // Never fall back to memory just because query returns no records
+      return await EventLog.find({ tripId }).sort({ timestamp: 1 }).lean();
     }
     return (store.events || []).filter(e => e.tripId === tripId);
   },
@@ -551,23 +547,20 @@ export const dataService = {
     };
 
     if (isDBConnected()) {
-      try {
-        await Interaction.create(interaction);
-      } catch (e) {
-        console.warn('Failed to persist Interaction:', e.message);
-      }
+      // Must not swallow database write errors
+      await Interaction.create(interaction);
+    } else {
+      if (!store.interactions) store.interactions = [];
+      store.interactions.push(interaction);
     }
-
-    if (!store.interactions) store.interactions = [];
-    store.interactions.push(interaction);
     return interaction;
   },
 
   async getAllInteractions() {
     assertProductionDB();
     if (isDBConnected()) {
-      const list = await Interaction.find({}).lean();
-      if (list && list.length > 0) return list;
+      // Never fall back to memory when DB connected
+      return await Interaction.find({}).lean();
     }
     return store.interactions || [];
   },
@@ -586,8 +579,8 @@ export const dataService = {
   async listVenues() {
     assertProductionDB();
     if (isDBConnected()) {
-      const list = await VenueMetadata.find({}).lean();
-      if (list && list.length > 0) return list;
+      // Never fall back to process memory when DB connected
+      return await VenueMetadata.find({}).lean();
     }
     return store.venues;
   },
@@ -595,25 +588,27 @@ export const dataService = {
   async getVenueById(id) {
     assertProductionDB();
     if (isDBConnected()) {
-      const v = await VenueMetadata.findOne({ id }).lean();
-      if (v) return v;
+      // Return MongoDB record or null; never fall back to memory
+      return await VenueMetadata.findOne({ id }).lean();
     }
     return store.venues.find(v => v.id === id || v.venueId === id) || null;
   },
 
   async addVenues(newVenues) {
     assertProductionDB();
-    if (isDBConnected() && Array.isArray(newVenues) && newVenues.length > 0) {
-      const operations = newVenues.map(v => ({
-        updateOne: {
-          filter: { id: v.id },
-          update: { $set: v },
-          upsert: true,
-        },
-      }));
-      await VenueMetadata.bulkWrite(operations, { ordered: false }).catch((err) => {
-        console.warn('Venue bulkWrite warning:', err.message);
-      });
+    if (isDBConnected()) {
+      if (Array.isArray(newVenues) && newVenues.length > 0) {
+        const operations = newVenues.map(v => ({
+          updateOne: {
+            filter: { id: v.id },
+            update: { $set: v },
+            upsert: true,
+          },
+        }));
+        // Write errors must not be swallowed
+        await VenueMetadata.bulkWrite(operations, { ordered: false });
+      }
+      return await VenueMetadata.countDocuments();
     }
     for (const nv of newVenues) {
       const existingIdx = store.venues.findIndex(v => v.id === nv.id);

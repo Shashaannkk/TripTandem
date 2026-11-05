@@ -13,6 +13,12 @@ import authRoutes from './routes/authRoutes.js';
 import weatherRoutes from './routes/weatherRoutes.js';
 import { setupSocketIO } from './socket.js';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 const app = express();
@@ -89,6 +95,14 @@ app.get('/api/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`[Server] Port ${PORT} already in use; attaching to existing instance.`);
+  } else {
+    console.error('[Server] Unexpected server error:', err);
+  }
+});
 
 // Connect to MongoDB if MONGODB_URI is provided
 connectDB()

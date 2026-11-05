@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { store } from './store.js';
 import { dataService } from './services/dataService.js';
 import { BudgetEngine } from './services/budgetService.js';
-import { JWT_SECRET } from './middleware/auth.js';
+import { getJwtSecret, JWT_SECRET } from './middleware/auth.js';
 
 export function setupSocketIO(io) {
   // Map of tripId -> Map(socketId -> userData)
@@ -14,6 +14,9 @@ export function setupSocketIO(io) {
     if (!token) return null;
     const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
     if (typeof cleanToken === 'string' && cleanToken.startsWith('demo-token-')) {
+      if (process.env.NODE_ENV === 'production') {
+        return null;
+      }
       const demoId = cleanToken.replace('demo-token-', '');
       const user = await dataService.getUserById(demoId);
       if (user) {
@@ -26,7 +29,7 @@ export function setupSocketIO(io) {
       }
     }
     try {
-      const decoded = jwt.verify(cleanToken, JWT_SECRET);
+      const decoded = jwt.verify(cleanToken, getJwtSecret());
       if (decoded && decoded.id) {
         return {
           id: decoded.id,
@@ -56,6 +59,10 @@ export function setupSocketIO(io) {
       if (!token) {
         socket.user = null;
         return next();
+      }
+
+      if (process.env.NODE_ENV === 'production' && typeof token === 'string' && token.startsWith('demo-token-')) {
+        return next(new Error('Unauthorized: Demo authentication tokens are prohibited in production mode.'));
       }
 
       const verifiedUser = await resolveSocketUser(token);

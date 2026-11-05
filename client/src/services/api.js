@@ -889,6 +889,18 @@ export const api = {
     return data;
   },
 
+  // Fetch verified persisted venues for destination
+  async getVenuesByDestination(destination) {
+    try {
+      const res = await authFetch(`${BASE_URL}/venues/${encodeURIComponent(destination)}/venues`);
+      const data = await safeJson(res);
+      return data?.venues || data?.data || [];
+    } catch (e) {
+      console.warn('Failed to fetch venues for destination:', e);
+      return [];
+    }
+  },
+
   // Real Event-Driven Session Analytics (PRD Feature 4)
   async getAnalytics(tripId) {
     try {

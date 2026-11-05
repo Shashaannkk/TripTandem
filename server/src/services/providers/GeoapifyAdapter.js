@@ -31,6 +31,9 @@ export class GeoapifyAdapter extends BaseProviderAdapter {
   async searchPlaces({ destination = 'Goa', category = 'hotel', lat, lng, radius = 5000, limit = 10 }) {
     // 1. Resolve true GPS coordinates for any destination in India or worldwide
     const destInfo = await geocodingService.resolveDestination(destination);
+    if (!destInfo || destInfo.source === 'fallback') {
+      return []; // Destination could not be verified; do not substitute fallback coordinates!
+    }
     const centerLat = lat != null ? Number(lat) : destInfo.lat;
     const centerLng = lng != null ? Number(lng) : destInfo.lng;
 

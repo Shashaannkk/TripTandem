@@ -85,9 +85,228 @@ const DESTINATION_MAP = {
   'london': 'London',
 };
 
+// Helper: Haversine distance in km
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Convert "HH:MM", "8:00 pm", "8pm", "20:00" to minutes from midnight [0..1439]
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return null;
+  const str = String(timeStr).trim().toLowerCase();
+
+  const m12 = str.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (m12) {
+    let hours = parseInt(m12[1], 10);
+    const minutes = m12[2] ? parseInt(m12[2], 10) : 0;
+    const meridian = m12[3];
+    if (meridian === 'pm' && hours < 12) hours += 12;
+    if (meridian === 'am' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+
+  const m24 = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const hours = parseInt(m24[1], 10);
+    const minutes = parseInt(m24[2], 10);
+    return hours * 60 + minutes;
+  }
+
+  return null;
+}
+
+function extractAllHoursWindows(venue) {
+  if (!venue) return [];
+  if (venue.hours && venue.hours.open && venue.hours.close) {
+    return [venue.hours];
+  }
+  if (venue.openingHours && typeof venue.openingHours === 'string') {
+    const windows = [];
+    const segments = venue.openingHours.split(/[,;]/);
+    for (const seg of segments) {
+      const m = seg.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*[-–to]+\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+      if (m) {
+        windows.push({ open: m[1].trim(), close: m[2].trim() });
+      }
+    }
+    if (windows.length > 0) return windows;
+  }
+  return [];
+}
+
+function extractHours(venue) {
+  const windows = extractAllHoursWindows(venue);
+  return windows.length > 0 ? windows[0] : null;
+}
+
+// Enforce opening hours window plus buffer (PRD 30 min arrival buffer)
+function isVenueOpenAt(windowsOrHours, requestedMinutes, bufferMinutes = 30) {
+  if (requestedMinutes == null) return true;
+  if (!windowsOrHours) return false; // Fail closed if hours constraint requested but venue data missing
+
+  const windows = Array.isArray(windowsOrHours) ? windowsOrHours : [windowsOrHours];
+  if (windows.length === 0) return false;
+
+  for (const hoursObj of windows) {
+    const openMinutes = parseTimeToMinutes(hoursObj.open);
+    let closeMinutes = parseTimeToMinutes(hoursObj.close);
+
+    if (openMinutes == null || closeMinutes == null) continue;
+
+    // Overnight closing (e.g. 19:00 -> 02:00)
+    if (closeMinutes <= openMinutes) {
+      closeMinutes += 1440;
+    }
+
+    let req = requestedMinutes;
+    if (req < openMinutes && (req + 1440) <= closeMinutes) {
+      req += 1440;
+    }
+
+    if (req >= openMinutes && (req + bufferMinutes) <= closeMinutes) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Filter venues strictly against PRD hard constraints:
+ * - Destination
+ * - Category
+ * - Budget Ceiling
+ * - Every Dietary Restriction
+ * - Anchor Radius
+ * - Requested Opening Hours Window + 30m buffer
+ */
+function filterVenuesStrictly(venues, {
+  destination,
+  category,
+  budgetCeiling,
+  dietaryConstraints = [],
+  anchorCoords,
+  radiusKm,
+  requestedTimeMinutes,
+  timeSlot,
+}) {
+  return venues.filter(v => {
+    // 1. Destination filter (strict: never substitute another destination!)
+    if (destination) {
+      const vDest = (v.destination || '').toLowerCase();
+      const dTarget = destination.toLowerCase();
+      if (!vDest.includes(dTarget) && !dTarget.includes(vDest)) {
+        return false;
+      }
+    }
+
+    // 2. Category filter (never substitute stay for restaurant or vice versa)
+    if (category) {
+      const vType = (v.type || '').toLowerCase();
+      const vCat = (v.category || '').toLowerCase();
+
+      if (category === 'stay') {
+        const isStay = (vType === 'stay' || vType === 'hotel' || vType === 'resort' || vType === 'villa' || vType === 'hostel' || vCat === 'stay');
+        if (!isStay) return false;
+      } else if (category === 'restaurant') {
+        const isRestaurant = (
+          vType === 'restaurant' || vType === 'dining' || vType === 'cafe' || vType === 'food' ||
+          vCat === 'restaurant' || vCat === 'dining' || vCat === 'cafe' || vCat === 'food'
+        );
+        if (!isRestaurant) return false;
+      } else if (category === 'experience') {
+        const isStayOrDining = (
+          vType === 'stay' || vType === 'hotel' || vType === 'resort' || vType === 'villa' || vType === 'hostel' ||
+          vType === 'restaurant' || vType === 'dining' || vType === 'cafe' ||
+          vCat === 'stay' || vCat === 'restaurant' || vCat === 'dining' || vCat === 'food'
+        );
+        const isExp = (
+          vType === 'experience' || vType === 'attraction' || vType === 'activity' ||
+          vCat === 'experience' || vCat === 'activity' || vCat === 'adventure' || vCat === 'nature' || vCat === 'popular' || vCat === 'heritage'
+        );
+        if (isStayOrDining || (!isExp && (vType === 'stay' || vType === 'restaurant'))) return false;
+      }
+    }
+
+    // 3. Budget ceiling filter
+    const vPrice = v.pricePerPerson != null ? v.pricePerPerson : (v.price != null ? v.price : 0);
+    if (budgetCeiling != null && vPrice > budgetCeiling) {
+      return false;
+    }
+
+    // 4. Dietary restrictions filter (Every required tag must be satisfied)
+    if (dietaryConstraints.length > 0) {
+      const vTags = (v.dietaryTags || v.dietary || []).map(t => String(t).toLowerCase());
+      const allSatisfied = dietaryConstraints.every(reqTag =>
+        vTags.some(t => t.includes(reqTag.toLowerCase()))
+      );
+      if (!allSatisfied) return false;
+    }
+
+    // 5. Anchor radius filter
+    if (anchorCoords && radiusKm != null) {
+      const vLat = v.lat || v.coordinates?.lat;
+      const vLng = v.lng || v.coordinates?.lng;
+      if (!vLat || !vLng) return false;
+      const dist = haversineDistanceKm(anchorCoords.lat, anchorCoords.lng, vLat, vLng);
+      if (dist > Number(radiusKm)) {
+        return false;
+      }
+    }
+
+    // 6. Requested opening hours window plus buffer (30m)
+    if (requestedTimeMinutes != null) {
+      const windows = extractAllHoursWindows(v);
+      if (windows.length === 0 || !isVenueOpenAt(windows, requestedTimeMinutes, 30)) {
+        return false;
+      }
+    }
+
+    // 7. Time slot filter
+    if (timeSlot) {
+      const windows = extractAllHoursWindows(v);
+      if (windows.length > 0) {
+        let anySlotMatches = false;
+        for (const hours of windows) {
+          const openM = parseTimeToMinutes(hours.open);
+          const closeM = parseTimeToMinutes(hours.close);
+          if (openM != null && closeM != null) {
+            if (timeSlot === 'morning' && openM <= 11 * 60) anySlotMatches = true;
+            if ((timeSlot === 'dinner' || timeSlot === 'evening') && (closeM >= 19 * 60 || closeM <= 6 * 60)) anySlotMatches = true;
+            if (timeSlot === 'night' && (closeM >= 22 * 60 || closeM <= 6 * 60)) anySlotMatches = true;
+            if (timeSlot === 'afternoon' && openM <= 15 * 60 && closeM >= 12 * 60) anySlotMatches = true;
+          }
+        }
+        if (!anySlotMatches) return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 // POST /api/ai/concierge - Grounded AI Concierge & Smart Recommendation Engine
 router.post('/concierge', async (req, res) => {
-  const { query, tripId, partySize = 4, budgetCeiling } = req.body;
+  const {
+    query,
+    tripId,
+    partySize = 4,
+    budgetCeiling,
+    dietaryConstraints,
+    radiusKm,
+    anchorItemId,
+    anchorCoords: customAnchorCoords,
+    requestedTime,
+    timeSlot,
+  } = req.body;
 
   if (!query) {
     return res.status(400).json({ success: false, message: 'Query is required' });
@@ -108,7 +327,6 @@ router.post('/concierge', async (req, res) => {
     }
   }
 
-  // If query specifies a destination via phrase (e.g. "trip to ...", "in ...")
   if (!foundDestInQuery) {
     const toMatch = q.match(/(?:trip to|visit|in|explore|plan for)\s+([a-zA-Z\s]+)/i);
     if (toMatch) {
@@ -119,12 +337,69 @@ router.post('/concierge', async (req, res) => {
     }
   }
 
-  // Find candidate venues strictly from backend records matching the destination
-  let candidateVenues = allVenues.filter(v => 
+  // Parse category requested in query
+  let requestedCategory = null;
+  if (q.includes('hotel') || q.includes('stay') || q.includes('resort') || q.includes('villa') || q.includes('hostel')) {
+    requestedCategory = 'stay';
+  } else if (q.includes('food') || q.includes('restaurant') || q.includes('dining') || q.includes('lunch') || q.includes('dinner') || q.includes('breakfast') || q.includes('cafe')) {
+    requestedCategory = 'restaurant';
+  } else if (q.includes('activity') || q.includes('experience') || q.includes('adventure') || q.includes('attraction') || q.includes('monument')) {
+    requestedCategory = 'experience';
+  }
+
+  // Parse budget ceiling
+  let ceiling = budgetCeiling;
+  if (ceiling == null) {
+    const match = q.match(/(?:under|below|less than|max)\s*(?:[\$₹€]\s*)?(\d+)/i);
+    if (match) ceiling = Number(match[1]);
+  }
+
+  // Parse dietary restrictions
+  const queryDietary = [];
+  if (q.includes('vegetarian') || q.includes('veg')) queryDietary.push('vegetarian');
+  if (q.includes('vegan')) queryDietary.push('vegan');
+  if (q.includes('halal')) queryDietary.push('halal');
+  if (q.includes('jain')) queryDietary.push('jain');
+  if (q.includes('gluten')) queryDietary.push('gluten-free');
+  const requiredDietary = dietaryConstraints || queryDietary;
+
+  // Parse opening hours / requested time window
+  let reqTimeStr = requestedTime || req.body.time;
+  if (!reqTimeStr) {
+    const match = q.match(/(?:open at|at|around)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+    if (match) {
+      let t = match[1].trim();
+      if (!t.includes(':') && (t.toLowerCase().includes('am') || t.toLowerCase().includes('pm'))) {
+        t = t.replace(/(am|pm)/i, ':00 $1');
+      } else if (!t.includes(':')) {
+        t = `${t}:00`;
+      }
+      reqTimeStr = t;
+    }
+  }
+  const reqMinutes = reqTimeStr ? parseTimeToMinutes(reqTimeStr) : null;
+
+  // Resolve anchor coordinates if provided
+  let anchorCoords = customAnchorCoords || null;
+  if (!anchorCoords && anchorItemId && trip) {
+    for (const day of trip.days || []) {
+      const it = (day.items || []).find(i => i.id === anchorItemId);
+      if (it) {
+        const v = allVenues.find(venue => venue.id === it.venueId);
+        if (v && (v.lat || v.coordinates?.lat)) {
+          anchorCoords = { lat: v.lat || v.coordinates.lat, lng: v.lng || v.coordinates.lng };
+        }
+        break;
+      }
+    }
+  }
+
+  // Find candidate venues strictly matching destination
+  let candidateVenues = allVenues.filter(v =>
     v.destination && v.destination.toLowerCase().includes(destination.toLowerCase())
   );
 
-  // If no venues exist yet for this destination, invoke multi-provider live discovery
+  // If destination is not in catalog, try live provider discovery if available
   if (candidateVenues.length === 0) {
     try {
       const disc = await providerRegistry.discoverAndEnrich({
@@ -141,303 +416,86 @@ router.post('/concierge', async (req, res) => {
     }
   }
 
-  // If still zero venues, return a clear no-match result without inventing fake venue details
-  if (candidateVenues.length === 0) {
+  // Filter candidates strictly with PRD constraints
+  const validVenues = filterVenuesStrictly(candidateVenues, {
+    destination,
+    category: requestedCategory,
+    budgetCeiling: ceiling,
+    dietaryConstraints: requiredDietary,
+    anchorCoords,
+    radiusKm,
+    requestedTimeMinutes: reqMinutes,
+    timeSlot,
+  });
+
+  // If no candidates meet constraints, return clear no-match without inventing venues
+  if (validVenues.length === 0) {
     return res.json({
       success: true,
       data: {
         query,
-        assistantReply: `I checked verified catalogued and provider records for "${destination}", but found no matching verified venues. Please try another destination or adjust your search constraints.`,
+        destination,
+        assistantReply: `No verified catalogued or provider records in ${destination} satisfied all specified constraints (${[
+          requestedCategory ? `category: ${requestedCategory}` : null,
+          ceiling ? `budget ceiling: ₹${ceiling}` : null,
+          requiredDietary.length ? `dietary: [${requiredDietary.join(', ')}]` : null,
+          radiusKm ? `radius: ${radiusKm}km` : null,
+          reqMinutes != null ? `hours window: open with buffer` : null,
+        ].filter(Boolean).join(', ')}). Please adjust your search constraints.`,
         suggestions: [],
+        citations: [],
         itineraryPlan: null,
         totalSuggestions: 0,
-        destination,
-        constraintsValidated: true,
+        constraintsValidated: false,
         noMatch: true,
       },
     });
   }
 
-  let suggestions = [];
-  let assistantReply = '';
+  // Build grounded suggestions and citations from real catalogued records
+  const citations = validVenues.slice(0, 3).map(v => ({
+    venueId: v.id,
+    name: v.name,
+    category: v.category || v.type,
+    pricePerPerson: v.pricePerPerson != null ? v.pricePerPerson : (v.price || 0),
+    rating: v.rating,
+    coordinates: { lat: v.lat || v.coordinates?.lat, lng: v.lng || v.coordinates?.lng },
+    hours: extractHours(v) || v.hours || { open: '10:00', close: '22:00' },
+    dietaryTags: v.dietaryTags || v.dietary || [],
+    source: v.source || 'catalog',
+  }));
 
-  let itineraryPlan = null;
-
-  // 1. Comprehensive Connected Plan Generation ("Plan 3 days", "Itinerary", "Trip to Goa")
-  if (q.includes('plan') || q.includes('itinerary') || q.includes('days') || q.includes('trip') || q.includes('weekend') || q.includes('tour') || q.includes('schedule')) {
-    const stays = candidateVenues.filter(v => v.type === 'stay' || v.category === 'stay');
-    const dining = candidateVenues.filter(v => v.type === 'restaurant' || v.category === 'restaurant' || v.type === 'cafe');
-    const experiences = candidateVenues.filter(v => v.type !== 'stay' && v.type !== 'restaurant' && v.category !== 'stay');
-
-    const selectedStay = stays[0] || candidateVenues[0];
-    const food1 = dining[0] || candidateVenues[1] || selectedStay;
-    const food2 = dining[1] || candidateVenues[2] || food1;
-    const exp1 = experiences[0] || candidateVenues[1] || selectedStay;
-    const exp2 = experiences[1] || candidateVenues[2] || exp1;
-
-    const stayCostPerPerson = Math.round((selectedStay.price || 5000) / (partySize || 4));
-    const foodCost = (food1.price || 850) + (food2.price || 950);
-    const expCost = (exp1.price || 800) + (exp2.price || 1200);
-    const estTotalPerPerson = (stayCostPerPerson * 2) + foodCost + expCost + 1500; // 2 nights stay + food + activities + transit buffer
-
-    itineraryPlan = {
-      title: `${destination} 3-Day Harmonious Escape`,
-      destination,
-      daysCount: 3,
-      partySize: partySize || 4,
-      estimatedCostPerPerson: estTotalPerPerson,
-      budgetBreakdown: {
-        stays: 45,
-        food: 25,
-        activities: 20,
-        transit: 10,
-      },
-      schedule: [
-        {
-          day: 1,
-          theme: 'Arrival & Scenic Welcome',
-          slots: [
-            { time: '12:00 PM', slot: 'morning', title: `Check-in: ${selectedStay.name}`, venue: selectedStay, cost: stayCostPerPerson, note: 'Group room allocation & terrace welcome' },
-            { time: '02:00 PM', slot: 'afternoon', title: `Welcome Lunch: ${food1.name}`, venue: food1, cost: food1.price || 850, note: 'Authentic local kitchen catering to dietary needs' },
-            { time: '05:30 PM', slot: 'evening', title: `Golden Hour: ${exp1.name}`, venue: exp1, cost: exp1.price || 600, note: 'Sunset gathering & photography point' },
-          ]
-        },
-        {
-          day: 2,
-          theme: 'Adventure & Local Culture Trail',
-          slots: [
-            { time: '10:00 AM', slot: 'morning', title: `Adventure: ${exp2.name}`, venue: exp2, cost: exp2.price || 1200, note: 'Curated activity with certified safety equipment' },
-            { time: '01:30 PM', slot: 'afternoon', title: `Coastal Lunch: ${food2.name}`, venue: food2, cost: food2.price || 950, note: 'Specialty culinary landmark' },
-            { time: '07:30 PM', slot: 'evening', title: 'Live Music & Starlight Dinner', venue: candidateVenues[3] || exp1, cost: 900, note: 'Group celebration & consensus voting review' },
-          ]
-        },
-        {
-          day: 3,
-          theme: 'Leisure, Souvenirs & Farewell',
-          slots: [
-            { time: '10:30 AM', slot: 'morning', title: 'Local Artisan Bazaar & Heritage Trail', venue: candidateVenues[2] || exp2, cost: 500, note: 'Handcrafted souvenirs & tranquil morning' },
-            { time: '01:00 PM', slot: 'afternoon', title: 'Farewell Brunch & Expense Settle', venue: food1, cost: 750, note: 'Minimum Cash Flow balance settlement & departure' },
-          ]
-        }
-      ]
+  const suggestions = validVenues.slice(0, 3).map((v, index) => {
+    const vPrice = v.pricePerPerson != null ? v.pricePerPerson : (v.price || 0);
+    return {
+      id: `sug-${v.id}`,
+      venueId: v.id,
+      venueName: v.name,
+      title: v.name,
+      category: v.category || v.type,
+      image: v.coverImage || v.image,
+      proposedDay: index + 1,
+      proposedTimeSlot: index === 0 ? 'morning' : index === 1 ? 'afternoon' : 'evening',
+      proposedTime: index === 0 ? '10:00 AM' : index === 1 ? '02:00 PM' : '07:00 PM',
+      duration: '2h',
+      estimatedCostPerPerson: vPrice,
+      location: v.region || v.destination,
+      source: v.source || 'verified_catalog_record',
+      rating: v.rating || 4.8,
+      openingHours: v.openingHours || (v.hours ? `${v.hours.open} - ${v.hours.close}` : null),
+      dietaryTags: v.dietaryTags || v.dietary || [],
+      coordinates: { lat: v.lat || v.coordinates?.lat, lng: v.lng || v.coordinates?.lng },
+      rationale: `${(v.description || '').slice(0, 110)}... Verified catalog record in ${destination}.`,
+      constraintsChecked: [
+        `Verified rate: ₹${vPrice.toLocaleString()}`,
+        `Rating: ${v.rating || 4.8} ★`,
+        `Dietary: ${(v.dietaryTags || v.dietary || []).join(', ') || 'Standard'}`,
+      ],
+      missingDataWarning: null,
     };
+  });
 
-    // Populate suggestions for backward compatibility
-    suggestions = [
-      {
-        id: `ai-plan-stay-${Date.now()}`,
-        title: `Recommended Stay: ${selectedStay.name}`,
-        venueId: selectedStay.id,
-        venueName: selectedStay.name,
-        category: 'stay',
-        image: selectedStay.coverImage,
-        proposedDay: 1,
-        proposedTimeSlot: 'morning',
-        proposedTime: '12:00 PM',
-        duration: '2 Nights',
-        estimatedCostPerPerson: stayCostPerPerson,
-        location: selectedStay.region || selectedStay.destination,
-        source: 'verified_backend_record',
-        rationale: `Primary lodging chosen for group space, central transit access, and ${selectedStay.rating} ★ traveler score.`,
-        constraintsChecked: [`₹${stayCostPerPerson.toLocaleString()} per person split`, 'Verified GPS location'],
-      },
-      {
-        id: `ai-plan-food-${Date.now()}`,
-        title: `Group Dining: ${food1.name}`,
-        venueId: food1.id,
-        venueName: food1.name,
-        category: 'restaurant',
-        image: food1.coverImage,
-        proposedDay: 1,
-        proposedTimeSlot: 'afternoon',
-        proposedTime: '02:00 PM',
-        duration: '1h 30m',
-        estimatedCostPerPerson: food1.price || 850,
-        location: food1.region,
-        source: 'verified_backend_record',
-        rationale: 'Top dining destination with confirmed options for vegetarian and group tables.',
-        constraintsChecked: ['Dietary verified', 'Table reservations available'],
-      },
-      {
-        id: `ai-plan-exp-${Date.now()}`,
-        title: `Featured Experience: ${exp2.name}`,
-        venueId: exp2.id,
-        venueName: exp2.name,
-        category: 'experience',
-        image: exp2.coverImage,
-        proposedDay: 2,
-        proposedTimeSlot: 'morning',
-        proposedTime: '10:00 AM',
-        duration: '3h',
-        estimatedCostPerPerson: exp2.price || 1200,
-        location: exp2.region,
-        source: 'verified_backend_record',
-        rationale: 'Highest rated group adventure in the region with verified operator contact.',
-        constraintsChecked: ['Safety protocols validated', 'Group booking discount'],
-      }
-    ];
-
-    assistantReply = `I crafted a connected 3-day itinerary for ${partySize || 4} travelers in ${destination}! Stays, dining, and activities are linked with budget estimates (~₹${estTotalPerPerson.toLocaleString()}/person) and live crew voting.`;
-  }
-  // 2. Hotel / Stay Inquiries ("Suggest hotels", "Where to stay", "Best resorts")
-  else if (q.includes('hotel') || q.includes('stay') || q.includes('resort') || q.includes('villa') || q.includes('hostel')) {
-    const stays = candidateVenues.filter(v => v.type === 'stay');
-    const selectedStays = stays.length > 0 ? stays : candidateVenues;
-
-    selectedStays.slice(0, 3).forEach((v, index) => {
-      suggestions.push({
-        id: `ai-sug-stay-${Date.now()}-${index}`,
-        title: v.name,
-        venueId: v.id,
-        venueName: v.name,
-        category: 'stay',
-        image: v.coverImage,
-        proposedDay: 1,
-        proposedTimeSlot: 'morning',
-        proposedTime: '02:00 PM',
-        duration: 'Check-in',
-        estimatedCostPerPerson: Math.round((v.price || 5000) / (partySize || 4)),
-        location: v.region || v.destination,
-        source: 'verified_backend_record',
-        rationale: `${v.description ? v.description.slice(0, 110) : 'Verified property'} with ${v.rating || 4.8} ★ rating. ${v.contact?.phone ? `Contact: ${v.contact.phone}` : ''}`,
-        constraintsChecked: [
-          `Verified rate: ₹${(v.price || 0).toLocaleString()}/night (~₹${Math.round((v.price || 0) / (partySize || 4)).toLocaleString()} per person split)`,
-          `GPS Map location: ${v.address || `${v.region}, ${v.destination}`}`,
-          `High guest satisfaction: ${v.rating || 4.9} ★`,
-        ],
-        missingDataWarning: null,
-      });
-    });
-
-    assistantReply = `I found ${suggestions.length} verified stays in ${destination} featuring verified coordinates, guest reviews, and direct host contacts. Each property includes fair group bill splits.`;
-  }
-  // 2. Budget Split & Money Advice ("How to split budget", "Money calculation", "Who pays what")
-  else if (q.includes('budget') || q.includes('split') || q.includes('money') || q.includes('who pays') || q.includes('calculation')) {
-    const total = budgetCeiling || trip?.budget?.totalTarget || 40000;
-    const perPerson = Math.round(total / (partySize || 4));
-
-    assistantReply = `Here is our optimal group financial plan for ${partySize} travelers with a ₹${total.toLocaleString()} budget (₹${perPerson.toLocaleString()} per person):
-• Stays & Accommodation: 45% (~₹${Math.round(total * 0.45).toLocaleString()})
-• Dining & Food: 25% (~₹${Math.round(total * 0.25).toLocaleString()})
-• Activities & Experiences: 20% (~₹${Math.round(total * 0.20).toLocaleString()})
-• Transit & Emergency Buffer: 10% (~₹${Math.round(total * 0.10).toLocaleString()})
-You can log individual receipts anytime using the "I Paid This 🧾" button in Group Chat, and our Minimum Cash Flow matrix will instantly calculate the exact direct transfers needed to settle up.`;
-
-    const budgetVenues = candidateVenues.slice(0, 2);
-    budgetVenues.forEach((v, index) => {
-      suggestions.push({
-        id: `ai-sug-budget-${Date.now()}-${index}`,
-        title: `Value Choice: ${v.name}`,
-        venueId: v.id,
-        venueName: v.name,
-        category: v.type,
-        image: v.coverImage,
-        proposedDay: index + 1,
-        proposedTimeSlot: 'afternoon',
-        proposedTime: '01:00 PM',
-        duration: '1h 30m',
-        estimatedCostPerPerson: v.price || 800,
-        location: v.region,
-        source: 'verified_backend_record',
-        rationale: `Fits well within individual contribution cap of ₹${perPerson.toLocaleString()}.`,
-        constraintsChecked: [
-          `Estimated cost ₹${(v.price || 0).toLocaleString()} fits group cap`,
-          `High satisfaction score: ${v.rating} ★`,
-        ],
-        missingDataWarning: null,
-      });
-    });
-  }
-  // 3. Vegetarian & Culinary Dining
-  else if (q.includes('veg') || q.includes('vegetarian') || q.includes('jain') || q.includes('food') || q.includes('restaurant') || q.includes('dining')) {
-    const foodVenues = candidateVenues.filter(v => 
-      v.type === 'restaurant' || (v.dietary && v.dietary.length > 0)
-    );
-    const selected = foodVenues.length > 0 ? foodVenues : candidateVenues;
-
-    selected.slice(0, 3).forEach((v, index) => {
-      suggestions.push({
-        id: `ai-sug-${Date.now()}-${index}`,
-        title: `${v.name} (Dining)`,
-        venueId: v.id,
-        venueName: v.name,
-        category: 'restaurant',
-        image: v.coverImage,
-        proposedDay: index + 1,
-        proposedTimeSlot: 'afternoon',
-        proposedTime: '01:30 PM',
-        duration: '1h 45m',
-        estimatedCostPerPerson: v.price || 850,
-        location: v.region,
-        source: 'verified_backend_record',
-        rationale: `Matches culinary preferences. ${v.dietary ? v.dietary.join(', ') : 'Fresh authentic kitchen'}. Located in ${v.region}.`,
-        constraintsChecked: [
-          'Dietary check: Verified local specialties',
-          `Indicative price: ₹${v.price || 850}/person`,
-        ],
-        missingDataWarning: null,
-      });
-    });
-
-    assistantReply = `I found ${suggestions.length} culinary landmarks in ${destination} accommodating pure vegetarian, jain, and regional coastal palates.`;
-  }
-  // 4. Cheaper Alternatives
-  else if (q.includes('cheap') || q.includes('alternative') || q.includes('less expensive')) {
-    const cheaperVenues = [...candidateVenues].sort((a, b) => (a.price || 0) - (b.price || 0)).slice(0, 2);
-
-    cheaperVenues.forEach((v, index) => {
-      suggestions.push({
-        id: `ai-sug-${Date.now()}-${index}`,
-        title: `Value Alternative: ${v.name}`,
-        venueId: v.id,
-        venueName: v.name,
-        category: v.type,
-        image: v.coverImage,
-        proposedDay: 1,
-        proposedTimeSlot: 'evening',
-        proposedTime: '06:00 PM',
-        duration: '2h',
-        estimatedCostPerPerson: v.price,
-        location: v.region,
-        source: 'verified_backend_record',
-        rationale: `Priced at ₹${v.price}/person. Saves group funds while maintaining top traveler ratings.`,
-        constraintsChecked: [
-          `Rating validation: ${v.rating} ★ based on ${v.reviewCount} traveler reviews`,
-        ],
-        missingDataWarning: null,
-      });
-    });
-
-    assistantReply = `Here are high-value alternatives that preserve group experiences without straining individual budgets.`;
-  }
-  // 5. Default Itinerary Recommendations
-  else {
-    assistantReply = `I tailored a balanced, verified travel rhythm for your crew in ${destination}. Every property below includes transparent pricing, real photos, and coordinates.`;
-    
-    candidateVenues.slice(0, 3).forEach((v, index) => {
-      suggestions.push({
-        id: `ai-sug-general-${index}`,
-        title: v.name,
-        venueId: v.id,
-        venueName: v.name,
-        category: v.type,
-        image: v.coverImage,
-        proposedDay: index + 1,
-        proposedTimeSlot: index === 0 ? 'morning' : index === 1 ? 'afternoon' : 'evening',
-        proposedTime: index === 0 ? '10:30 AM' : index === 1 ? '02:00 PM' : '06:00 PM',
-        duration: '2h',
-        estimatedCostPerPerson: v.price || 1200,
-        location: v.region,
-        source: 'verified_backend_record',
-        rationale: `${(v.description || '').slice(0, 110)}... Matches your group pace.`,
-        constraintsChecked: [
-          `Verified rate: ₹${(v.price || 0).toLocaleString()} (${v.priceType || 'verified'})`,
-          `Rating: ${v.rating || 4.8} ★`,
-        ],
-        missingDataWarning: null,
-      });
-    });
-  }
+  const assistantReply = `I found ${suggestions.length} verified venue records in ${destination} satisfying all your requirements, complete with verified pricing, ratings, and GPS coordinates.`;
 
   res.json({
     success: true,
@@ -445,31 +503,30 @@ You can log individual receipts anytime using the "I Paid This 🧾" button in G
       query,
       assistantReply,
       suggestions,
-      itineraryPlan,
+      citations,
+      itineraryPlan: null,
       totalSuggestions: suggestions.length,
       destination,
       constraintsValidated: true,
+      noMatch: false,
     },
   });
 });
 
-// Helper: Haversine distance in km
-function haversineDistanceKm(lat1, lon1, lat2, lon2) {
-  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 // POST /api/ai/ask & POST /api/v1/trips/:id/ai/ask (PRD Section 7.3.3 Grounded RAG & Constraint Matching Engine)
 router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
   const tripId = req.params.id || req.body.tripId || 'trip-goa-2026';
-  const { userId = 'u_current', question = '', anchorItemId, budgetCeiling, dietaryConstraints, radiusKm = 2.0, timeSlot } = req.body;
+  const {
+    userId = 'u_current',
+    question = '',
+    anchorItemId,
+    anchorCoords: customAnchorCoords,
+    budgetCeiling,
+    dietaryConstraints,
+    radiusKm = 2.0,
+    requestedTime,
+    timeSlot,
+  } = req.body;
 
   if (!question || !question.trim()) {
     return res.status(400).json({ success: false, message: 'Question string is required' });
@@ -479,54 +536,81 @@ router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
   const trip = tripId ? (await dataService.getTripById(tripId)) : (await dataService.listTrips())[0];
   const qLower = question.toLowerCase();
 
+  // Find destination from query or trip
+  let destName = trip?.destination?.split(',')[0]?.trim()?.toLowerCase() || 'goa';
+  let foundDestInQuery = false;
+  for (const [keyPhrase, canonicalDest] of Object.entries(DESTINATION_MAP)) {
+    if (qLower.includes(keyPhrase)) {
+      destName = canonicalDest.toLowerCase();
+      foundDestInQuery = true;
+      break;
+    }
+  }
+  if (!foundDestInQuery) {
+    const toMatch = qLower.match(/(?:trip to|visit|in|explore|plan for)\s+([a-zA-Z\s]+)/i);
+    if (toMatch) {
+      destName = toMatch[1].trim().toLowerCase();
+    }
+  }
+
+  // Parse category from question
+  let requestedCategory = null;
+  if (qLower.includes('hotel') || qLower.includes('stay') || qLower.includes('resort') || qLower.includes('villa') || qLower.includes('hostel')) {
+    requestedCategory = 'stay';
+  } else if (qLower.includes('food') || qLower.includes('restaurant') || qLower.includes('dining') || qLower.includes('lunch') || qLower.includes('dinner') || qLower.includes('breakfast') || qLower.includes('cafe')) {
+    requestedCategory = 'restaurant';
+  } else if (qLower.includes('activity') || qLower.includes('experience') || qLower.includes('adventure') || qLower.includes('attraction') || qLower.includes('monument')) {
+    requestedCategory = 'experience';
+  }
+
   // Find anchor item coordinates if provided
-  let anchorCoords = null;
-  if (anchorItemId && trip) {
+  let anchorCoords = customAnchorCoords || null;
+  if (!anchorCoords && anchorItemId && trip) {
     for (const day of trip.days || []) {
       const item = (day.items || []).find(i => i.id === anchorItemId);
       if (item) {
-        const v = allVenues.find(v => v.id === item.venueId);
-        if (v && v.lat && v.lng) {
-          anchorCoords = { lat: v.lat, lng: v.lng };
-        } else if (v && v.coordinates) {
-          anchorCoords = v.coordinates;
+        const v = allVenues.find(venue => venue.id === item.venueId);
+        if (v && (v.lat || v.coordinates?.lat)) {
+          anchorCoords = { lat: v.lat || v.coordinates.lat, lng: v.lng || v.coordinates.lng };
         }
         break;
       }
     }
   }
 
-  // Fallback anchor: first venue of the trip
-  if (!anchorCoords && trip && trip.days && trip.days[0] && trip.days[0].items && trip.days[0].items[0]) {
-    const v = allVenues.find(v => v.id === trip.days[0].items[0].venueId);
-    if (v) anchorCoords = { lat: v.lat || 15.492, lng: v.lng || 73.773 };
-  }
-
-  // Parse budget ceiling from question if present (e.g. "under $25", "under 1500", "under ₹2000")
+  // Parse budget ceiling from question if present
   let ceiling = budgetCeiling;
-  if (!ceiling) {
+  if (ceiling == null) {
     const match = qLower.match(/(?:under|below|less than|max)\s*(?:[\$₹€]\s*)?(\d+)/i);
-    if (match) {
-      ceiling = Number(match[1]);
-    }
+    if (match) ceiling = Number(match[1]);
   }
 
-  // Parse dietary from question (e.g. vegetarian, vegan, halal, gluten-free, jain)
+  // Parse dietary from question
   const queryDietary = [];
   if (qLower.includes('vegetarian') || qLower.includes('veg')) queryDietary.push('vegetarian');
   if (qLower.includes('vegan')) queryDietary.push('vegan');
   if (qLower.includes('halal')) queryDietary.push('halal');
   if (qLower.includes('jain')) queryDietary.push('jain');
   if (qLower.includes('gluten')) queryDietary.push('gluten-free');
-
   const requiredDietary = dietaryConstraints || queryDietary;
 
-  // Determine candidate venues in destination
-  const destName = trip?.destination?.split(',')[0]?.trim()?.toLowerCase() || 'goa';
-  let candidates = allVenues.filter(v => (v.destination || '').toLowerCase().includes(destName));
-  if (candidates.length === 0) candidates = allVenues;
+  // Parse requested time window
+  let reqTimeStr = requestedTime || req.body.time;
+  if (!reqTimeStr) {
+    const match = qLower.match(/(?:open at|at|around)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+    if (match) {
+      let t = match[1].trim();
+      if (!t.includes(':') && (t.toLowerCase().includes('am') || t.toLowerCase().includes('pm'))) {
+        t = t.replace(/(am|pm)/i, ':00 $1');
+      } else if (!t.includes(':')) {
+        t = `${t}:00`;
+      }
+      reqTimeStr = t;
+    }
+  }
+  const reqMinutes = reqTimeStr ? parseTimeToMinutes(reqTimeStr) : null;
 
-  // Desired time slot (e.g. breakfast/morning vs lunch/afternoon vs dinner/evening)
+  // Desired time slot
   const requestedSlot = timeSlot || (
     qLower.includes('breakfast') || qLower.includes('morning') ? 'morning' :
     qLower.includes('lunch') || qLower.includes('afternoon') ? 'afternoon' :
@@ -534,57 +618,44 @@ router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
     qLower.includes('night') || qLower.includes('late') ? 'night' : null
   );
 
-  // Apply Strict Hard Constraint Filtering (PRD Section 4.3 & 6.2)
-  const validCandidates = candidates.filter(v => {
-    const vPrice = v.pricePerPerson != null ? v.pricePerPerson : (v.price || 0);
+  // Determine candidate venues strictly in destination (never substitute another destination!)
+  const candidates = allVenues.filter(v => {
+    const vDest = (v.destination || '').toLowerCase();
+    return vDest.includes(destName) || destName.includes(vDest);
+  });
 
-    // 1. Budget Ceiling Hard Constraint
-    if (ceiling && vPrice > ceiling) {
-      return false;
-    }
-
-    // 2. Dietary Compatibility - Every required tag must be present
-    if (requiredDietary.length > 0) {
-      const vTags = (v.dietaryTags || v.dietary || []).map(t => t.toLowerCase());
-      const hasAll = requiredDietary.every(reqTag => 
-        vTags.some(t => t.includes(reqTag.toLowerCase()))
-      );
-      if (!hasAll) return false;
-    }
-
-    // 3. Proximity Filter
-    if (anchorCoords && (v.lat || v.coordinates?.lat)) {
-      const vLat = v.lat || v.coordinates.lat;
-      const vLng = v.lng || v.coordinates.lng;
-      const distKm = haversineDistanceKm(anchorCoords.lat, anchorCoords.lng, vLat, vLng);
-      if (distKm > Number(radiusKm)) {
-        return false;
-      }
-    }
-
-    // 4. Operating Hours Filter
-    if (requestedSlot && v.hours) {
-      const openHour = parseInt(String(v.hours.open || '09:00').split(':')[0], 10);
-      const closeHour = parseInt(String(v.hours.close || '22:00').split(':')[0], 10);
-      if (requestedSlot === 'morning' && openHour > 11) return false;
-      if ((requestedSlot === 'dinner' || requestedSlot === 'evening') && closeHour < 19) return false;
-      if (requestedSlot === 'night' && closeHour < 22) return false;
-    }
-
-    return true;
+  // Apply strict PRD constraint filtering
+  const validCandidates = filterVenuesStrictly(candidates, {
+    destination: destName,
+    category: requestedCategory,
+    budgetCeiling: ceiling,
+    dietaryConstraints: requiredDietary,
+    anchorCoords,
+    radiusKm: anchorCoords ? radiusKm : null,
+    requestedTimeMinutes: reqMinutes,
+    timeSlot: requestedSlot,
   });
 
   // Strict PRD Requirement: When constraints cannot be met, return clear no-match without inventing fake records!
   if (validCandidates.length === 0) {
     return res.json({
-      answer: `No catalogued venues in ${destName.toUpperCase()} satisfied all specified constraints (budget ceiling: ₹${ceiling || 'unrestricted'}, dietary: [${requiredDietary.join(', ') || 'none'}], max radius: ${radiusKm} km). Please adjust constraints to discover alternative venues.`,
+      answer: `No catalogued or verified records in ${destName.toUpperCase()} satisfied all specified constraints (${[
+        requestedCategory ? `category: ${requestedCategory}` : null,
+        ceiling ? `budget ceiling: ₹${ceiling}` : null,
+        requiredDietary.length ? `dietary: [${requiredDietary.join(', ')}]` : null,
+        anchorCoords ? `max radius: ${radiusKm}km` : null,
+        reqMinutes != null ? `hours window: open with buffer` : null,
+      ].filter(Boolean).join(', ')}). Please adjust constraints to discover alternative venues.`,
       suggestedVenueId: null,
       sourceEvents: [],
       venueDetails: null,
+      citations: [],
       constraintsSatisfied: {
         budgetCeiling: false,
         dietaryMatch: false,
         proximityRadiusKm: false,
+        openingHoursMatch: false,
+        categoryMatch: false,
       },
       noMatch: true,
       candidatesEvaluated: candidates.length,
@@ -610,14 +681,28 @@ router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
   scored.sort((a, b) => b.score - a.score);
   const best = scored[0].venue;
   const bestDist = scored[0].distKm || 1.2;
-  const walkMinutes = Math.max(3, Math.round((bestDist * 1000) / 80)); // 80 meters/min walking speed
+  const walkMinutes = Math.max(3, Math.round((bestDist * 1000) / 80));
 
   const bestPrice = best.pricePerPerson != null ? best.pricePerPerson : (best.price || 850);
   const currencySymbol = ceiling && ceiling < 100 ? '$' : '₹';
 
   const answer = `${best.name} is a ${walkMinutes}-minute walk (${bestDist.toFixed(1)} km) from your anchor location, features verified ${(best.dietaryTags || best.dietary || ['local']).join(', ')} options, and runs about ${currencySymbol}${bestPrice} per person. (Rating: ${best.rating || 4.8} ★)`;
 
-  // Return PRD 7.3.3 compliant structure
+  const citations = scored.slice(0, 3).map(s => {
+    const v = s.venue;
+    return {
+      venueId: v.id,
+      name: v.name,
+      category: v.category || v.type,
+      pricePerPerson: v.pricePerPerson != null ? v.pricePerPerson : (v.price || 0),
+      rating: v.rating,
+      coordinates: { lat: v.lat || v.coordinates?.lat, lng: v.lng || v.coordinates?.lng },
+      hours: extractHours(v) || v.hours || { open: '10:00', close: '22:00' },
+      dietaryTags: v.dietaryTags || v.dietary || [],
+      source: v.source || 'catalog',
+    };
+  });
+
   res.json({
     answer,
     suggestedVenueId: best.id,
@@ -633,10 +718,13 @@ router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
       hours: best.openingHours || (best.hours ? `${best.hours.open} - ${best.hours.close}` : '10:00 AM - 10:00 PM'),
       source: best.source || best.sourceProvider || 'catalog',
     },
+    citations,
     constraintsSatisfied: {
       budgetCeiling: ceiling ? bestPrice <= ceiling : true,
       dietaryMatch: true,
       proximityRadiusKm: anchorCoords ? bestDist <= radiusKm : true,
+      openingHoursMatch: true,
+      categoryMatch: true,
     },
     noMatch: false,
     generatedAt: new Date().toISOString(),

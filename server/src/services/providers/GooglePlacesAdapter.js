@@ -1,6 +1,7 @@
 import { BaseProviderAdapter } from './BaseProviderAdapter.js';
 import { VenueModel } from '../../models/VenueModel.js';
 import { placeImageService } from '../PlaceImageService.js';
+import { geocodingService } from '../GeocodingService.js';
 
 export class GooglePlacesAdapter extends BaseProviderAdapter {
   constructor() {
@@ -30,6 +31,12 @@ export class GooglePlacesAdapter extends BaseProviderAdapter {
    */
   async searchPlaces({ destination = 'Goa', category = 'hotel', limit = 10 }) {
     if (!this.isConfigured()) {
+      return [];
+    }
+
+    // Validate that destination can be legitimately geocoded and exists
+    const destInfo = await geocodingService.resolveDestination(destination);
+    if (!destInfo || destInfo.source === 'fallback') {
       return [];
     }
 

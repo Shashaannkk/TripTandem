@@ -1,6 +1,31 @@
 import jwt from 'jsonwebtoken';
 import { dataService } from '../services/dataService.js';
 
+/**
+ * Retrieve the active JWT Secret.
+ * In production mode, strictly requires an environment-provided secret (min 32 chars)
+ * and forbids hardcoded or predictable defaults.
+ */
+export function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    if (
+      !secret ||
+      typeof secret !== 'string' ||
+      secret.trim() === '' ||
+      secret === 'triptandem-dev-secret-key-2026' ||
+      secret === 'triptandem_production_jwt_secret_must_be_32_chars_long' ||
+      secret.length < 32
+    ) {
+      throw new Error(
+        'CRITICAL SECURITY ERROR: A unique, secure environment-provided JWT_SECRET (minimum 32 characters) must be configured in production mode. Hardcoded fallback is strictly prohibited.'
+      );
+    }
+    return secret;
+  }
+  return secret || 'triptandem-dev-secret-key-2026';
+}
+
 export const JWT_SECRET = process.env.JWT_SECRET || 'triptandem-dev-secret-key-2026';
 export const ACCESS_TOKEN_EXPIRY = '1h'; // 1 hour per audit requirement
 export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -17,7 +42,7 @@ export function generateAccessToken(user) {
       name: user.name,
       role: user.role || 'Planner',
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
 }
@@ -32,7 +57,7 @@ export function generateRefreshToken(user) {
       id: userId,
       type: 'refresh',
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` }
   );
 }
@@ -80,7 +105,7 @@ export async function authenticateToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     if (!decoded.id || !decoded.email) {
       return res.status(401).json({
         success: false,
@@ -153,7 +178,7 @@ export async function optionalAuthToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     if (decoded && decoded.id) {
       req.user = {
         id: decoded.id,

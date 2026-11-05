@@ -13,7 +13,7 @@ const CURATED_DESTINATIONS = [
   { name: 'Mangalore', state: 'Karnataka', tag: 'Arabian Sea Shoreline & Coastal Food', count: 5, highlight: 'Panambur Beach, Tannirbhavi, Someshwara' },
   { name: 'Goa', state: 'Goa', tag: 'Beaches & Heritage', count: 18, highlight: 'Baga, Anjuna, Palolem' },
   { name: 'Manali', state: 'Himachal Pradesh', tag: 'Snow Peaks & Valleys', count: 12, highlight: 'Solang Valley, Old Manali' },
-  { name: 'Jaipur', state: 'Rajasthan', count: 14, highlight: 'Amber Fort, Hawa Mahal' },
+  { name: 'Jaipur', state: 'Rajasthan', tag: 'Pink City & Historic Forts', count: 14, highlight: 'Amber Fort, Hawa Mahal' },
   { name: 'Kerala', state: 'Kerala', tag: 'Backwaters & Spice Hills', count: 15, highlight: 'Alleppey, Munnar, Kochi' },
   { name: 'Udaipur', state: 'Rajasthan', tag: 'Lakes & Royal Palaces', count: 11, highlight: 'Lake Pichola, City Palace' },
   { name: 'Varanasi', state: 'Uttar Pradesh', tag: 'Ghats & Spiritual Culture', count: 10, highlight: 'Dashashwamedh Ghat, Sarnath' },
@@ -65,10 +65,10 @@ router.get('/autocomplete', async (req, res) => {
 
   // 1. Check curated Indian destinations first for rich contextual match
   const curatedMatches = CURATED_DESTINATIONS.filter(d => 
-    d.name.toLowerCase().includes(query) ||
-    d.state.toLowerCase().includes(query) ||
-    d.tag.toLowerCase().includes(query) ||
-    d.highlight.toLowerCase().includes(query)
+    (d.name && d.name.toLowerCase().includes(query)) ||
+    (d.state && d.state.toLowerCase().includes(query)) ||
+    (d.tag && d.tag.toLowerCase().includes(query)) ||
+    (d.highlight && d.highlight.toLowerCase().includes(query))
   );
 
   for (const m of curatedMatches) {
@@ -536,7 +536,7 @@ router.get('/free-hotels', async (req, res) => {
 });
 
 // GET /api/v1/destinations/:destination/venues (PRD Section 7.3.2 Endpoint)
-router.get(['/:destination/venues', '/destinations/:destination/venues'], (req, res) => {
+router.get(['/:destination/venues', '/destinations/:destination/venues'], async (req, res) => {
   const dest = req.params.destination || 'Goa';
   const { near, radiusKm = 10 } = req.query;
 
@@ -548,10 +548,10 @@ router.get(['/:destination/venues', '/destinations/:destination/venues'], (req, 
     }
   }
 
-  let venues = store.venues.filter(v =>
+  const allVenues = await dataService.listVenues();
+  let venues = allVenues.filter(v =>
     (v.destination || '').toLowerCase().includes(dest.toLowerCase())
   );
-  if (venues.length === 0) venues = store.venues;
 
   if (nearCoords) {
     venues = venues.filter(v => {
@@ -564,6 +564,7 @@ router.get(['/:destination/venues', '/destinations/:destination/venues'], (req, 
   }
 
   res.json({
+    success: true,
     destination: dest,
     venues: venues.map(v => ({
       venueId: v.id,

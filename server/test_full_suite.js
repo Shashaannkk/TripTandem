@@ -1,8 +1,44 @@
 // Comprehensive test suite for Priority 1 - 9 deliverables
-const BASE_URL = 'http://localhost:3001';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import http from 'http';
+import dotenv from 'dotenv';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config();
+
+import { app } from './src/index.js';
+
+let server;
+let BASE_URL = 'http://127.0.0.1:3001';
+
+async function ensureServer() {
+  try {
+    const res = await fetch('http://127.0.0.1:3001/api/health', { signal: AbortSignal.timeout(1000) });
+    if (res.ok) {
+      BASE_URL = 'http://127.0.0.1:3001';
+      return;
+    }
+  } catch (_) {
+    // 3001 is not running; spin up dedicated test server on port 3095
+    const testPort = 3095;
+    await new Promise((resolve, reject) => {
+      server = http.createServer(app);
+      server.listen(testPort, '127.0.0.1', () => {
+        BASE_URL = `http://127.0.0.1:${testPort}`;
+        resolve();
+      });
+      server.on('error', reject);
+    });
+  }
+}
 
 async function runTests() {
-  console.log('=== TRIPTANDEM SEARCH & PROVIDER TEST SUITE ===\n');
+  await ensureServer();
+  console.log(`=== TRIPTANDEM SEARCH & PROVIDER TEST SUITE ===`);
+  console.log(`Targeting server on: ${BASE_URL}\n`);
 
   let passed = 0;
   let total = 0;
@@ -123,6 +159,9 @@ async function runTests() {
   });
 
   console.log(`\n=== RESULTS: ${passed}/${total} TESTS PASSED ===\n`);
+  if (server) {
+    await new Promise((r) => server.close(r));
+  }
   if (passed === total) {
     process.exit(0);
   } else {

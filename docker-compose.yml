@@ -6,10 +6,7 @@ services:
   # -------------------------------------------------------------
   mongodb:
     image: mongo:7.0
-    container_name: triptandem-mongodb
     restart: unless-stopped
-    ports:
-      - '27017:27017'
     environment:
       MONGO_INITDB_DATABASE: triptandem
     volumes:
@@ -29,15 +26,14 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: triptandem-server
     restart: unless-stopped
     ports:
-      - '3001:3001'
+      - '${SERVER_PORT:-3001}:3001'
     environment:
       PORT: 3001
       NODE_ENV: production
       MONGODB_URI: mongodb://mongodb:27017/triptandem
-      JWT_SECRET: ${JWT_SECRET:-triptandem_production_jwt_secret_must_be_32_chars_long}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set for production deployment}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:5173,http://localhost:3000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

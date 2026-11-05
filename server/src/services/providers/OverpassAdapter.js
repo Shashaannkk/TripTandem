@@ -28,6 +28,9 @@ export class OverpassAdapter extends BaseProviderAdapter {
   async searchPlaces({ destination = 'Goa', category = 'hotel', lat, lng, radius = 5000, limit = 8 }) {
     // 1. Dynamically resolve real coordinates for any destination
     const destInfo = await geocodingService.resolveDestination(destination);
+    if (!destInfo || destInfo.source === 'fallback') {
+      return []; // Destination could not be verified; do not substitute fallback coordinates!
+    }
     const centerLat = lat != null ? Number(lat) : destInfo.lat;
     const centerLng = lng != null ? Number(lng) : destInfo.lng;
 

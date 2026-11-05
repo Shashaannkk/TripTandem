@@ -12,6 +12,7 @@ RUN npm ci --only=production
 # Copy application source
 COPY src/ ./src/
 COPY seed.js ./
+COPY data/ ./data/
 
 # Set production environment defaults
 ENV NODE_ENV=production
