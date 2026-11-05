@@ -164,20 +164,41 @@ export class RecommendationService {
         const memInteractions = allInteractions.filter(act => act.userId === mem.id);
         const hasDirectAction = memInteractions.some(act => String(act.venueId) === vId);
         const hasCategoryAction = memInteractions.some(act => act.category === cat);
-        const prefScore = hasDirectAction ? 1.0 : hasCategoryAction ? 0.88 : 0.65;
 
+        // Member category preferences from profile, preferences object, or role affinity
+        const memPrefCats = (mem.preferredCategories || mem.preferences?.categories || []).map(c => String(c).toLowerCase());
+        const matchesPrefCat = memPrefCats.includes(String(cat).toLowerCase());
+        const roleText = String(mem.role || '').toLowerCase();
+        const matchesRole = 
+          (roleText.includes('food') && (cat === 'restaurant' || cat === 'food')) ||
+          (roleText.includes('adventure') && (cat === 'experience' || cat === 'attraction')) ||
+          (roleText.includes('culture') && cat === 'attraction');
+
+        const prefScore = hasDirectAction ? 1.0 : (matchesPrefCat || hasCategoryAction || matchesRole) ? 0.90 : 0.65;
+
+        // Member budget compatibility
+        const memBudgetCap = mem.budgetLimit || mem.maxBudgetPerActivity;
         let bScore = 1.0;
-        if (price > perPersonBudget * 0.4) {
-          bScore = 0.6;
+        if (memBudgetCap && price > memBudgetCap) {
+          bScore = 0.4;
+        } else if (price > perPersonBudget * 0.4) {
+          bScore = 0.5;
         } else if (price > perPersonBudget * 0.25) {
           bScore = 0.8;
         }
 
+        // Member dietary compatibility (applies to dining / food venues)
+        const memDiet = (mem.dietary || mem.dietaryRestrictions || mem.preferences?.dietary || []).map(t => String(t).toLowerCase());
         const venueDiet = (venue.dietaryTags || venue.dietary || []).map(t => String(t).toLowerCase());
-        const dietScore = venueDiet.length > 0 ? 1.0 : 0.85;
+        const isFoodVenue = cat === 'restaurant' || cat === 'food' || venue.type === 'restaurant';
+        let dietScore = 1.0;
+        if (memDiet.length > 0 && isFoodVenue) {
+          const satisfiesMem = memDiet.every(reqTag => venueDiet.some(vt => vt.includes(reqTag)));
+          dietScore = satisfiesMem ? 1.0 : 0.2; // Severely penalize dining venues that cannot accommodate member's dietary restriction
+        }
 
-        const memberFit = 0.5 * prefScore + 0.3 * bScore + 0.2 * dietScore;
-        const alignment = memberFit >= 0.82 ? 'High' : memberFit >= 0.68 ? 'Moderate' : 'Neutral';
+        const memberFit = 0.45 * prefScore + 0.30 * bScore + 0.25 * dietScore;
+        const alignment = memberFit >= 0.82 ? 'High' : memberFit >= 0.65 ? 'Moderate' : 'Neutral';
 
         return {
           memberId: mem.id,
@@ -266,6 +287,7 @@ export class RecommendationService {
       return {
         ...venue,
         id: vId,
+        dietaryTags: venue.dietaryTags || venue.dietary || [],
         matchScore: Number(finalScore.toFixed(3)),
         matchPercentage: percentage,
         finalScore: Number(finalScore.toFixed(3)),

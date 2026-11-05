@@ -49,13 +49,13 @@ All 7 core features identified in the architectural audit have been completed, h
 
 ### 1.5 Hybrid Group Recommendation Engine & Group Fit
 - **Problem:** The recommendation engine lacked group preference aggregation, had no explicit multi-member group fit scoring, was disconnected from itinerary time slot integration, and had no measured offline evaluation benchmark.
-- **Solution:** Built `RecommendationService` blending content-based similarity (category, amenities, ratings) with collaborative travel history, multi-member consensus scoring (`groupFitScore`, `groupFitBreakdown`), balanced day scheduling (`itinerarySlot.suggestedDay`), and natural category-to-slot mapping (`morning`/`afternoon`/`evening`/`night`). Created `test_recommendation_eval.js` evaluating Precision@5 on a held-out test interaction benchmark and `test_group_fit.js` verifying consensus metrics.
-- **Outcome:** Measured **Precision@5: 78.0%**, surpassing the PRD threshold ($\ge 60.0\%$). Embedded the responsive `GroupRecommendationsRail.jsx` in the itinerary workspace with 1-click "Add to Day X" itinerary insertion.
+- **Solution:** Built `RecommendationService` blending content-based similarity (category, amenities, ratings) with collaborative travel history, multi-member consensus scoring (`groupFitScore`, `groupFitBreakdown`), balanced day scheduling (`itinerarySlot.suggestedDay`), and natural category-to-slot mapping (`morning`/`afternoon`/`evening`/`night`). Enhanced individual scoring with severe dietary penalties (0.2x score) on non-compliant food venues. Created `test_recommendation_eval.js` evaluating constraint adherence, cold-start handling, and held-out test interaction benchmarks, alongside `test_group_fit.js` verifying consensus metrics.
+- **Outcome:** Embedded the responsive `GroupRecommendationsRail.jsx` in the itinerary workspace with 1-click "Add to Day X" itinerary insertion. Offline testing verified 100% hard constraint adherence (budget ceiling, dietary tags, pinned item deduplication). On the local seed catalog, strict held-out hit rate was measured at 18.0% (theoretical maximum 40.0% given 10 local venues and 2 held-out items per user); production Precision@5 is classified as Unverified pending an external production telemetry dataset.
 
 ### 1.6 Persistent MongoDB/Mongoose Data Layer & Production Hardening
-- **Problem:** Data was previously stored strictly in-memory without Mongoose schemas, compound indexes, or database persistence, with a silent fallback that could cause data loss across production container restarts.
-- **Solution:** Implemented 6 core PRD Mongoose models (`User`, `Trip`, `ItineraryItem`, `VenueMetadata`, `ChatMessage`, `Interaction`) plus `EventLog` with 2dsphere geospatial coordinates and compound indexes. Hardened `db.js` and `dataService.js` to strictly enforce persistent MongoDB in `NODE_ENV === 'production'` while permitting zero-config in-memory mode only during local development and testing. Added multi-stage `Dockerfile` and `docker-compose.yml`.
-- **Verification:** Verified with `test_persistent_storage.js`, schema validations, and seed runner (`node server/seed.js`).
+- **Problem:** Data was previously stored strictly in-memory without Mongoose schemas, compound indexes, or database persistence, with a silent fallback that could cause data loss across production container restarts. Simultaneous concurrent saves in MongoDB could cause silent overwrites.
+- **Solution:** Implemented 6 core PRD Mongoose models (`User`, `Trip`, `ItineraryItem`, `VenueMetadata`, `ChatMessage`, `Interaction`) plus `EventLog` with 2dsphere geospatial coordinates and compound indexes. Added `optimisticConcurrency: true` to `tripSchema` and wrapped `updateItemWithConcurrency` to catch Mongoose `VersionError`, ensuring competing concurrent updates receive structured 409 conflict responses. Hardened `db.js` and `dataService.js` to strictly enforce persistent MongoDB in `NODE_ENV === 'production'` across all read and write methods, eliminating silent in-memory fallback in production. Ingestion uses `VenueMetadata.bulkWrite` with upsert for reliable persistence across restarts. Added multi-stage `Dockerfile` and `docker-compose.yml`.
+- **Verification:** Verified with `test_persistent_storage.js` (including live MongoDB disconnect/reconnect), `test_real_concurrency.js`, schema validations, and seed runner (`node server/seed.js`).
 
 ---
 
@@ -64,31 +64,42 @@ All 7 core features identified in the architectural audit have been completed, h
 | Decision | Trade-Off Considered | Rationale |
 |---|---|---|
 | **Integer Paise Currency Units** | Floating-point IEEE 754 numbers (`0.1 + 0.2 = 0.30000000000000004`) vs Integer Math. | Storing paise ensures absolute zero-sum accuracy down to the individual paisa without rounding leakage across complex weighted splits. |
-| **Dual-Mode Persistence (MongoDB + In-Memory Fallback)** | Requiring a live MongoDB cluster for development vs Dual-Mode Repository. | Dual-mode allows seamless local developer setup, automated CI/CD unit testing, and sandbox verification without requiring an external database, while supporting full MongoDB persistence in production. |
-| **Optimistic Concurrency over Pessimistic Locking** | Pessimistic DB locks (blocking edits while one user edits) vs Optimistic Versioning (`positionVersion`). | Collaborative planning is high-concurrency and human-driven. Pessimistic locks degrade user experience when collaborators walk away with tabs open. Optimistic versioning permits frictionless parallel editing and gracefully resolves the rare concurrent collision. |
+| **Dual-Mode Persistence (MongoDB + In-Memory Fallback)** | Requiring a live MongoDB cluster for development vs Dual-Mode Repository. | Dual-mode allows seamless local developer setup, automated CI/CD unit testing, and sandbox verification without requiring an external database, while strictly failing closed without MongoDB in production. |
+| **Optimistic Concurrency over Pessimistic Locking** | Pessimistic DB locks (blocking edits while one user edits) vs Optimistic Versioning (`positionVersion` + Mongoose `optimisticConcurrency`). | Collaborative planning is high-concurrency and human-driven. Pessimistic locks degrade user experience when collaborators walk away with tabs open. Optimistic versioning permits frictionless parallel editing and gracefully resolves concurrent collisions. |
 | **1-Hour Access Token + Rotated Refresh Cookie** | Long-lived access tokens (7 days) vs Short-lived token with refresh rotation. | Short-lived tokens limit the blast radius of stolen credentials. Refresh token rotation prevents replay attacks and enables immediate server-side revocation on logout. |
 
 ---
 
 ## 3. Performance Benchmark Summary
 
-All performance benchmarks were executed on the authoritative codebase using `node server/benchmark.js`:
+### 3.1 In-Process Micro-Benchmarks (`node server/benchmark.js`)
+All performance micro-benchmarks were executed on the authoritative codebase:
 
 | Benchmark Metric | PRD Target | Measured Actual | Status |
 |---|---|---|---|
 | Optimistic Concurrency Conflict Detection | $< 10.0\text{ ms}$ | **$0.006\text{ ms}$** | ✅ PASSED |
-| Budget Splitting & Zero-Sum Reconciliation | $< 50.0\text{ ms}$ | **$0.028\text{ ms}$** | ✅ PASSED |
-| Event-Driven Session Analytics Aggregation | $< 100.0\text{ ms}$ | **$0.245\text{ ms}$** | ✅ PASSED |
-| Hybrid Recommendation Query Latency | $< 200.0\text{ ms}$ | **$0.323\text{ ms}$** | ✅ PASSED |
-| Hard Constraint Filtering & Deduplication | $< 20.0\text{ ms}$ | **$0.102\text{ ms}$** | ✅ PASSED |
+| Budget Splitting & Zero-Sum Reconciliation | $< 50.0\text{ ms}$ | **$0.025\text{ ms}$** | ✅ PASSED |
+| Event-Driven Session Analytics Aggregation | $< 100.0\text{ ms}$ | **$0.119\text{ ms}$** | ✅ PASSED |
+| Hybrid Recommendation Query Latency | $< 200.0\text{ ms}$ | **$0.213\text{ ms}$** | ✅ PASSED |
+| Hard Constraint Filtering & Deduplication | $< 20.0\text{ ms}$ | **$0.069\text{ ms}$** | ✅ PASSED |
 | Socket.IO Canvas Sync Drift KPI | $< 100.0\text{ ms}$ | **$38.4\text{ ms}$** | ✅ PASSED |
-| Offline Recommender Precision@5 | $\ge 60.0\%$ | **$78.0\%$** | ✅ PASSED |
+
+### 3.2 Live HTTP Network Latency Harness (`node server/test_http_performance_harness.js`)
+Live HTTP requests were measured across real network roundtrips:
+
+| Endpoint | PRD Target | Measured Actual Latency | Status |
+|---|---|---|---|
+| `GET /api/health` | $< 50.0\text{ ms}$ | **$22.44\text{ ms}$** | ✅ PASSED |
+| `POST /api/ai/ask` | $< 200.0\text{ ms}$ | **$11.28\text{ ms}$** | ✅ PASSED |
+| `GET /api/trips/:id/session/analytics` | $< 100.0\text{ ms}$ | **$3.82\text{ ms}$** | ✅ PASSED |
+| `GET /api/trips/:id/recommendations` | $< 200.0\text{ ms}$ | **$3.77\text{ ms}$** | ✅ PASSED |
 
 ---
 
 ## 4. Known Limitations & Future Roadmap
 
-1. **Redis Adapter for Socket.IO Clustering:** Currently, Socket.IO rooms are maintained in-memory on a single Node.js instance. In a multi-instance Kubernetes deployment, configuring `@socket.io/redis-adapter` will ensure cross-node event broadcasting.
-2. **Offline-First PWA Synchronization:** While the client supports smooth optimistic updates and conflict toasts, adding IndexedDB client persistence with a background ServiceWorker would enable offline itinerary viewing on spotty flight or train journeys.
-3. **Vector Embeddings for Semantic RAG:** AI Concierge currently relies on keyword/catalog grounding. Transitioning venue descriptions and user travel profiles to vector embeddings (e.g. pgvector or MongoDB Atlas Vector Search) will further improve conversational recommendations.
+1. **Postponed Group Collaboration Sync:** Real-time group chat, presence rosters, member join notifications, automatic reconnection, and leader handover were explicitly postponed per project instructions. The underlying algorithms and schemas are present, and live WebSocket synchronization can be integrated once the collaboration service is scheduled.
+2. **Docker CLI Host Limit:** Multi-stage `Dockerfile` and `docker-compose.yml` are configured in the repository, but the Windows development host does not have the Docker CLI installed. Container deployment should be verified on a Linux or Docker Desktop host.
+3. **Redis Adapter for Socket.IO Clustering:** In a multi-instance Kubernetes deployment, configuring `@socket.io/redis-adapter` will ensure cross-node event broadcasting.
+4. **Vector Embeddings for Semantic RAG:** Transitioning venue descriptions and user travel profiles to vector embeddings (e.g. pgvector or MongoDB Atlas Vector Search) will further improve conversational recommendations.
 

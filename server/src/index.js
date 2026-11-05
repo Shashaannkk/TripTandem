@@ -28,6 +28,12 @@ const io = new Server(server, {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or Postman)
       if (!origin) return callback(null, true);
+      if (process.env.NODE_ENV === 'production') {
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('CORS origin denied in production mode'));
+      }
       if (allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) {
         return callback(null, true);
       }
@@ -45,6 +51,12 @@ app.set('io', io);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV === 'production') {
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS origin denied in production mode'));
+    }
     return callback(null, true); // Permissive for local dev + credentials
   },
   credentials: true,

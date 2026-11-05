@@ -1,5 +1,6 @@
 import express from 'express';
 import { store } from '../store.js';
+import { dataService } from '../services/dataService.js';
 import { providerRegistry } from '../services/providers/ProviderRegistry.js';
 import { geocodingService } from '../services/GeocodingService.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
@@ -578,7 +579,7 @@ router.get(['/:destination/venues', '/destinations/:destination/venues'], (req, 
 });
 
 // POST /api/venues/dataset/upload (PRD Section 6.3 & 10.1 Admin Dataset Ingestion)
-router.post('/dataset/upload', authenticateToken, requireRole('Admin'), (req, res) => {
+router.post('/dataset/upload', authenticateToken, requireRole('Admin'), async (req, res) => {
   const { destination, venues } = req.body;
 
   if (!destination || typeof destination !== 'string') {
@@ -651,9 +652,14 @@ router.post('/dataset/upload', authenticateToken, requireRole('Admin'), (req, re
         price,
         dietaryTags: tags.map(t => String(t).toLowerCase()),
         hours: { open: openTime, close: closeTime },
+        openingHours: `${openTime} - ${closeTime}`,
         lat,
         lng,
         coordinates: { lat, lng },
+        location: {
+          type: 'Point',
+          coordinates: [lng, lat],
+        },
         description: v.description || `Verified venue in ${destination}`,
         source: 'admin_upload',
       });
@@ -670,22 +676,22 @@ router.post('/dataset/upload', authenticateToken, requireRole('Admin'), (req, re
     });
   }
 
-  // Ingest into store
-  store.venues.push(...validVenues);
+  // Ingest and persist into MongoDB and runtime catalog
+  const catalogCount = await dataService.addVenues(validVenues);
 
   res.status(201).json({
     success: true,
     message: `Successfully ingested ${validVenues.length} verified venues for ${destination}.`,
     destination,
     ingestedCount: validVenues.length,
-    totalCatalogVenues: store.venues.length,
+    totalCatalogVenues: catalogCount,
     data: validVenues,
   });
 });
 
 // GET /api/venues/:id - Get venue by ID
-router.get('/:id', (req, res) => {
-  const venue = store.venues.find(v => v.id === req.params.id);
+router.get('/:id', async (req, res) => {
+  const venue = await dataService.getVenueById(req.params.id);
   if (!venue) {
     return res.status(404).json({ success: false, message: 'Venue not found' });
   }

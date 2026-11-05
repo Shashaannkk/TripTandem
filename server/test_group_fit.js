@@ -80,6 +80,31 @@ async function run() {
     });
   });
 
+  await test('member dietary restriction correctly lowers individual fit score when unmet', async () => {
+    const dietaryTrip = {
+      destination: 'Goa, India',
+      members: [
+        { id: 'user-vegan', name: 'Vegan Traveler', dietary: ['vegan'] },
+        { id: 'user-regular', name: 'Regular Traveler', dietary: [] },
+      ],
+      budget: { totalTarget: 40000, expenses: [] },
+      days: [{ dayNumber: 1, items: [] }],
+    };
+
+    const dietaryRecs = await RecommendationService.getRecommendationsForGroup(dietaryTrip, { limit: 5 });
+    assert(dietaryRecs.length > 0, 'Must return recommendations');
+    dietaryRecs.forEach(rec => {
+      const isFood = rec.category === 'restaurant' || rec.category === 'food' || rec.type === 'restaurant';
+      const hasVeganTag = (rec.dietaryTags || []).some(t => t.toLowerCase().includes('vegan'));
+      const veganBreakdown = rec.groupFitBreakdown.find(m => m.name === 'Vegan Traveler');
+      const regularBreakdown = rec.groupFitBreakdown.find(m => m.name === 'Regular Traveler');
+      if (isFood && !hasVeganTag) {
+        // Vegan traveler must receive a lower score when dining venue does not accommodate vegan
+        assert(veganBreakdown.fitScore < regularBreakdown.fitScore, `Vegan traveler fitScore (${veganBreakdown.fitScore}) must be lower than unrestricted traveler (${regularBreakdown.fitScore}) for non-vegan dining venue ${rec.name}`);
+      }
+    });
+  });
+
   console.log(`\nResults: ${passed}/${total} tests passed.\n`);
   process.exit(passed === total ? 0 : 1);
 }

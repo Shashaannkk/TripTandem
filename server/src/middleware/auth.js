@@ -59,6 +59,13 @@ export async function authenticateToken(req, res, next) {
   }
 
   if (token.startsWith('demo-token-')) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Demo authentication tokens are prohibited in production mode.',
+      });
+    }
     const demoId = token.replace('demo-token-', '');
     const user = await dataService.getUserById(demoId);
     if (user) {
@@ -125,6 +132,13 @@ export async function optionalAuthToken(req, res, next) {
   }
 
   if (token.startsWith('demo-token-')) {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Demo authentication tokens are prohibited in production mode.',
+      });
+    }
     const demoId = token.replace('demo-token-', '');
     const user = await dataService.getUserById(demoId);
     if (user) {

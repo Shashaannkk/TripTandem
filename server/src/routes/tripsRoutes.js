@@ -625,9 +625,9 @@ router.post(
   }
 );
 
-// GET /api/trips/:id/analytics - Real Event-Driven Session Analytics (Feature 4)
+// GET /api/trips/:id/analytics & /api/trips/:id/session/analytics - Real Event-Driven Session Analytics (Feature 4)
 router.get(
-  '/:id/analytics',
+  ['/:id/analytics', '/:id/session/analytics'],
   authenticateToken,
   requireTripMember(['Viewer', 'Planner', 'Leader', 'Admin']),
   async (req, res) => {

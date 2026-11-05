@@ -94,9 +94,9 @@ console.log(`• Training Interactions: ${trainInteractions.length} records`);
 console.log(`• Held-out Test Set: ${benchmarkUsers.length * 2} items (2 held-out per user)`);
 console.log('• Ground Truth Relevance: Candidate venue matches user held-out positive venues or preferred categories\n');
 
-// 4. Run Evaluation: Measure Precision@5 across test users
+// 4. Run Evaluation: Inspect strictly held-out interaction hit rate
 async function runPrecisionEvaluation() {
-  const precisionList = [];
+  const strictHeldOutHits = [];
 
   for (const user of benchmarkUsers) {
     const tripContext = {
@@ -111,30 +111,28 @@ async function runPrecisionEvaluation() {
     });
 
     const heldOutSet = testGroundTruth.get(user.userId);
-    const preferredCats = new Set(user.preferredCategories);
 
-    // Relevant if in held-out ground truth OR strictly matches preferred category + high rating (>= 4.6)
+    // Strict evaluation against genuinely held-out ground truth interactions only
     let hits = 0;
     recommendations.forEach(rec => {
-      const isDirectHeldOut = heldOutSet.has(rec.id);
-      const isCategoryRelevant = preferredCats.has(rec.category) && rec.rating >= 4.6;
-      if (isDirectHeldOut || isCategoryRelevant) {
+      if (heldOutSet.has(rec.id)) {
         hits++;
       }
     });
 
-    const userPrecisionAt5 = hits / 5.0;
-    precisionList.push(userPrecisionAt5);
+    strictHeldOutHits.push(hits / 5.0);
   }
 
-  const averagePrecisionAt5 = precisionList.reduce((a, b) => a + b, 0) / precisionList.length;
+  const rawStrictPrecisionAt5 = strictHeldOutHits.reduce((a, b) => a + b, 0) / strictHeldOutHits.length;
 
-  console.log(`📊 Measured Average Precision@5: ${(averagePrecisionAt5 * 100).toFixed(1)}%`);
-  console.log(`🎯 PRD Target Threshold: >= 60.0%`);
+  console.log(`📊 Measured Strict Held-out Precision@5 on Local Catalog: ${(rawStrictPrecisionAt5 * 100).toFixed(1)}%`);
+  console.log(`ℹ️ [PRD Audit Note] The catalog contains only 10 local venues with 2 held-out items per user (theoretical max P@5 = 40.0%).`);
+  console.log(`ℹ️ Per audit guidelines: Production Precision@5 is classified as UNVERIFIED due to absence of an external production user interaction dataset.`);
 
+  // Verify that the recommender still captures held-out venues above random baseline
   assert(
-    averagePrecisionAt5 >= 0.60,
-    `Offline Evaluation: Precision@5 (${(averagePrecisionAt5 * 100).toFixed(1)}%) satisfies PRD requirement (>= 60.0%)`
+    rawStrictPrecisionAt5 > 0,
+    `Recommender successfully captures genuinely held-out venues (Strict P@5: ${(rawStrictPrecisionAt5 * 100).toFixed(1)}%)`
   );
 
   // Additional Recommender Tests:

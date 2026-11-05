@@ -23,6 +23,7 @@ export const dataService = {
   // USERS
   // -------------------------------------------------------------
   async listUsers() {
+    assertProductionDB();
     if (isDBConnected()) {
       return await User.find({}).lean();
     }
@@ -30,6 +31,7 @@ export const dataService = {
   },
 
   async getUserById(id) {
+    assertProductionDB();
     if (isDBConnected()) {
       return await User.findOne({ id }).lean();
     }
@@ -37,6 +39,7 @@ export const dataService = {
   },
 
   async getUserByEmail(email, includePassword = false) {
+    assertProductionDB();
     if (!email) return null;
     const normalized = email.trim().toLowerCase();
     if (isDBConnected()) {
@@ -96,6 +99,7 @@ export const dataService = {
   },
 
   async verifyRefreshToken(userId, token) {
+    assertProductionDB();
     if (isDBConnected()) {
       const user = await User.findOne({ id: userId, 'refreshTokens.token': token });
       if (!user) return false;
@@ -119,6 +123,7 @@ export const dataService = {
   },
 
   async removeRefreshToken(userId, token) {
+    assertProductionDB();
     if (isDBConnected()) {
       await User.updateOne({ id: userId }, { $pull: { refreshTokens: { token } } });
       return;
@@ -129,6 +134,7 @@ export const dataService = {
   },
 
   async removeAllRefreshTokens(userId) {
+    assertProductionDB();
     if (isDBConnected()) {
       await User.updateOne({ id: userId }, { $set: { refreshTokens: [] } });
       return;
@@ -140,6 +146,7 @@ export const dataService = {
   // TRIPS
   // -------------------------------------------------------------
   async listTrips() {
+    assertProductionDB();
     if (isDBConnected()) {
       return await Trip.find({}).lean();
     }
@@ -147,6 +154,7 @@ export const dataService = {
   },
 
   async getTripById(id) {
+    assertProductionDB();
     if (isDBConnected()) {
       return await Trip.findOne({ id }).lean();
     }
@@ -154,6 +162,7 @@ export const dataService = {
   },
 
   async getTripByInviteCode(code) {
+    assertProductionDB();
     if (!code) return null;
     const normalized = code.trim().toUpperCase();
     if (isDBConnected()) {
@@ -379,13 +388,35 @@ export const dataService = {
         targetDay.items.push(targetItem);
       }
 
-      await trip.save();
-      return {
-        success: true,
-        item: targetItem.toObject ? targetItem.toObject() : targetItem,
-        trip: trip.toObject(),
-        newVersion: targetItem.positionVersion,
-      };
+      try {
+        await trip.save();
+        return {
+          success: true,
+          item: targetItem.toObject ? targetItem.toObject() : targetItem,
+          trip: trip.toObject(),
+          newVersion: targetItem.positionVersion,
+        };
+      } catch (err) {
+        if (err.name === 'VersionError' || err.name === 'ParallelSaveError') {
+          const latestTrip = await Trip.findOne({ id: tripId }).lean();
+          let latestItem = null;
+          if (latestTrip) {
+            for (const d of latestTrip.days || []) {
+              const it = (d.items || []).find(i => i.id === itemId);
+              if (it) { latestItem = it; break; }
+            }
+          }
+          return {
+            success: false,
+            conflict: true,
+            error: `Concurrent write conflict: document was modified simultaneously by another collaborator.`,
+            currentServerVersion: latestItem?.positionVersion || serverVersion,
+            authoritativeItem: latestItem || (targetItem.toObject ? targetItem.toObject() : targetItem),
+            authoritativeTrip: latestTrip || trip.toObject(),
+          };
+        }
+        throw err;
+      }
     }
 
     // In-memory store handling
@@ -467,6 +498,7 @@ export const dataService = {
   // EVENTS & ANALYTICS
   // -------------------------------------------------------------
   async recordEvent({ tripId, type, actorId, metadata = {} }) {
+    assertProductionDB();
     const event = {
       id: `evt-${uuidv4().slice(0, 8)}`,
       tripId,
@@ -492,6 +524,7 @@ export const dataService = {
   },
 
   async getEventsForTrip(tripId) {
+    assertProductionDB();
     if (isDBConnected()) {
       const events = await EventLog.find({ tripId }).sort({ timestamp: 1 }).lean();
       if (events && events.length > 0) return events;
@@ -503,6 +536,7 @@ export const dataService = {
   // INTERACTIONS (For Hybrid Group Recommender)
   // -------------------------------------------------------------
   async recordInteraction(data) {
+    assertProductionDB();
     const interaction = {
       id: data.id || `act-${uuidv4().slice(0, 8)}`,
       userId: data.userId,
@@ -530,6 +564,7 @@ export const dataService = {
   },
 
   async getAllInteractions() {
+    assertProductionDB();
     if (isDBConnected()) {
       const list = await Interaction.find({}).lean();
       if (list && list.length > 0) return list;
@@ -538,6 +573,7 @@ export const dataService = {
   },
 
   async getUserInteractions(userId) {
+    assertProductionDB();
     if (isDBConnected()) {
       return await Interaction.find({ userId }).lean();
     }
@@ -548,6 +584,7 @@ export const dataService = {
   // VENUES
   // -------------------------------------------------------------
   async listVenues() {
+    assertProductionDB();
     if (isDBConnected()) {
       const list = await VenueMetadata.find({}).lean();
       if (list && list.length > 0) return list;
@@ -556,6 +593,7 @@ export const dataService = {
   },
 
   async getVenueById(id) {
+    assertProductionDB();
     if (isDBConnected()) {
       const v = await VenueMetadata.findOne({ id }).lean();
       if (v) return v;
@@ -565,10 +603,26 @@ export const dataService = {
 
   async addVenues(newVenues) {
     assertProductionDB();
-    if (isDBConnected()) {
-      await VenueMetadata.insertMany(newVenues, { ordered: false }).catch(() => {});
+    if (isDBConnected() && Array.isArray(newVenues) && newVenues.length > 0) {
+      const operations = newVenues.map(v => ({
+        updateOne: {
+          filter: { id: v.id },
+          update: { $set: v },
+          upsert: true,
+        },
+      }));
+      await VenueMetadata.bulkWrite(operations, { ordered: false }).catch((err) => {
+        console.warn('Venue bulkWrite warning:', err.message);
+      });
     }
-    store.venues.push(...newVenues);
+    for (const nv of newVenues) {
+      const existingIdx = store.venues.findIndex(v => v.id === nv.id);
+      if (existingIdx !== -1) {
+        store.venues[existingIdx] = nv;
+      } else {
+        store.venues.push(nv);
+      }
+    }
     return store.venues.length;
   },
 };

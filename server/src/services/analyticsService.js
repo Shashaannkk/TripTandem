@@ -1,8 +1,10 @@
 import { dataService } from './dataService.js';
+import { BudgetEngine } from './budgetService.js';
 
 export class AnalyticsService {
   /**
    * Derive authentic session analytics from recorded event logs and trip data.
+   * Reconciles per-member paid and owed shares using integer paise expense splits.
    * Eliminates hardcoded demonstration values.
    */
   static async calculateTripAnalytics(tripId) {
@@ -11,15 +13,37 @@ export class AnalyticsService {
 
     const events = await dataService.getEventsForTrip(tripId);
 
-    // 1. Planning duration: Count unique calendar days (UTC/ISO) with recorded activity
+    // 1. Planning duration & Session Duration
+    // Unique calendar days (UTC/ISO) with recorded activity
     const activeDates = new Set();
+    const timestamps = [];
     events.forEach(e => {
       if (e.timestamp) {
-        const dateStr = new Date(e.timestamp).toISOString().split('T')[0];
-        activeDates.add(dateStr);
+        const d = new Date(e.timestamp);
+        const t = d.getTime();
+        if (!isNaN(t)) {
+          timestamps.push(t);
+          activeDates.add(d.toISOString().split('T')[0]);
+        }
       }
     });
+    timestamps.sort((a, b) => a - b);
+
     const planningDays = activeDates.size;
+    const firstEventTime = timestamps.length > 0 ? timestamps[0] : null;
+    const lastEventTime = timestamps.length > 0 ? timestamps[timestamps.length - 1] : null;
+    const totalSessionDurationMs = firstEventTime && lastEventTime ? lastEventTime - firstEventTime : 0;
+
+    let activeSessionTimeMs = 0;
+    for (let i = 1; i < timestamps.length; i++) {
+      const delta = timestamps[i] - timestamps[i - 1];
+      if (delta <= 30 * 60 * 1000) { // Count active contiguous windows (<= 30 min idle gap)
+        activeSessionTimeMs += delta;
+      }
+    }
+
+    const sessionDurationMinutes = Math.round(totalSessionDurationMs / 60000);
+    const activePlanningDurationMinutes = Math.round(activeSessionTimeMs / 60000);
 
     // 2. Planning actions by member
     const actionsByMemberMap = {};
@@ -46,8 +70,12 @@ export class AnalyticsService {
       };
     });
 
-    // 3. Peak planners count: Maximum concurrent active collaborators or distinct participants
-    const peakPlanners = Math.max(uniqueActors.size, (trip.members || []).length > 0 ? 1 : 0);
+    // 3. Unique collaborators vs true concurrent peak (PRD Audit distinction)
+    // Total distinct contributors in audit stream:
+    const totalUniqueActiveCollaborators = uniqueActors.size;
+    // Note: True simultaneous concurrent presence tracking is part of the postponed group synchronization issue.
+    const peakConcurrentCollaborators = null;
+    const concurrentPresenceTrackingStatus = 'POSTPONED_PRESENCE_DEPENDENCY';
 
     // 4. AI Questions asked
     const aiQuestionsAsked = events.filter(e => e.type === 'ai.question').length;
@@ -61,18 +89,16 @@ export class AnalyticsService {
     const votesCast = events.filter(e => e.type === 'vote.cast').length;
     const votesResolved = events.filter(e => e.type === 'vote.resolved').length;
 
-    // 7. Budget totals from verified expenses
-    const expenses = trip.budget?.expenses || [];
-    const spentTotal = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+    // 7. Budget totals & exact per-member reconciliation using persisted expense splits
+    const budgetReport = BudgetEngine.reconcileTripBudget(trip);
     const totalBudget = trip.budget?.totalTarget || 40000;
-    const memberCount = Math.max((trip.members || []).length, 1);
-    const perPersonShare = Math.round(spentTotal / memberCount);
+    const spentTotal = budgetReport ? budgetReport.actualLogged : 0;
+    const memberBalances = budgetReport ? budgetReport.memberBalances : [];
 
-    // Member contribution breakdown
     const memberBreakdown = (trip.members || []).map(m => {
-      const paid = expenses
-        .filter(exp => exp.paidBy === m.name || exp.paidBy === m.id)
-        .reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+      const mb = memberBalances.find(b => b.id === m.id || b.name === m.name);
+      const paid = mb ? mb.paid : 0;
+      const share = mb ? mb.shareOwed : 0;
       const actions = actionsByMemberMap[m.id] || actionsByMemberMap[m.name] || 0;
       return {
         id: m.id,
@@ -80,10 +106,14 @@ export class AnalyticsService {
         avatar: m.avatar,
         role: m.role,
         paid,
-        share: perPersonShare,
+        share,
+        netBalance: paid - share,
         actionsCount: actions,
       };
     });
+
+    const memberCount = Math.max((trip.members || []).length, 1);
+    const perPersonShare = Math.round(spentTotal / memberCount);
 
     // Peak planning periods (histogram by hour of day UTC)
     const hourlyDistribution = new Array(24).fill(0);
@@ -110,7 +140,12 @@ export class AnalyticsService {
       title: trip.title,
       totalEvents: events.length,
       planningDays,
-      peakPlanners,
+      sessionDurationMinutes,
+      activePlanningDurationMinutes,
+      totalUniqueActiveCollaborators,
+      peakConcurrentCollaborators,
+      concurrentPresenceTrackingStatus,
+      peakPlanners: totalUniqueActiveCollaborators, // preserved for backward-compatibility with UI
       aiQuestionsAsked,
       conflictsFlagged,
       conflictsResolved,
@@ -125,7 +160,11 @@ export class AnalyticsService {
       actionsByMember,
       summary: {
         activePlanningDays: planningDays,
-        uniqueActiveMembers: peakPlanners,
+        sessionDurationMinutes,
+        activePlanningDurationMinutes,
+        uniqueActiveMembers: totalUniqueActiveCollaborators,
+        peakConcurrentCollaborators: null,
+        peakConcurrentStatus: 'POSTPONED_PRESENCE_DEPENDENCY',
         aiQuestionsAsked,
         conflictsResolved,
         totalVotesCast: votesCast,
@@ -141,8 +180,9 @@ export class AnalyticsService {
           name: m.name,
           paid: m.paid,
           share: m.share,
-          netBalance: m.paid - m.share,
+          netBalance: m.netBalance,
         })),
+        zeroSumReconciled: budgetReport ? budgetReport.zeroSumReconciled : true,
       },
       recentEvents: events.slice(-15).reverse(),
       hasActivity: events.length > 0,

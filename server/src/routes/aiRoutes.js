@@ -1,5 +1,6 @@
 import express from 'express';
 import { store } from '../store.js';
+import { dataService } from '../services/dataService.js';
 import { providerRegistry } from '../services/providers/ProviderRegistry.js';
 import { geocodingService } from '../services/GeocodingService.js';
 
@@ -93,19 +94,33 @@ router.post('/concierge', async (req, res) => {
   }
 
   const q = query.toLowerCase();
-  const trip = tripId ? store.trips.find(t => t.id === tripId) : store.trips[0];
-  let destination = trip ? trip.destination.split(',')[0].trim() : 'Udupi';
+  const allVenues = await dataService.listVenues();
+  const trip = tripId ? await dataService.getTripById(tripId) : null;
+  let destination = trip ? trip.destination.split(',')[0].trim() : null;
 
   // Check if user is asking about a specific city or landmark in the query
+  let foundDestInQuery = false;
   for (const [keyPhrase, canonicalDest] of Object.entries(DESTINATION_MAP)) {
     if (q.includes(keyPhrase)) {
       destination = canonicalDest;
+      foundDestInQuery = true;
       break;
     }
   }
 
+  // If query specifies a destination via phrase (e.g. "trip to ...", "in ...")
+  if (!foundDestInQuery) {
+    const toMatch = q.match(/(?:trip to|visit|in|explore|plan for)\s+([a-zA-Z\s]+)/i);
+    if (toMatch) {
+      destination = toMatch[1].trim();
+    } else if (!destination) {
+      const defaultTrip = (await dataService.listTrips())[0];
+      destination = defaultTrip ? defaultTrip.destination.split(',')[0].trim() : 'Goa';
+    }
+  }
+
   // Find candidate venues strictly from backend records matching the destination
-  let candidateVenues = store.venues.filter(v => 
+  let candidateVenues = allVenues.filter(v => 
     v.destination && v.destination.toLowerCase().includes(destination.toLowerCase())
   );
 
@@ -119,73 +134,28 @@ router.post('/concierge', async (req, res) => {
       });
       if (disc && disc.venues && disc.venues.length > 0) {
         candidateVenues = disc.venues;
+        await dataService.addVenues(disc.venues).catch(() => {});
       }
     } catch (e) {
       console.warn('AI concierge discovery notice:', e.message);
     }
   }
 
-  // Guaranteed destination-locked fallbacks (STRICT: NEVER fall back to another city like Goa!)
+  // If still zero venues, return a clear no-match result without inventing fake venue details
   if (candidateVenues.length === 0) {
-    candidateVenues = [
-      {
-        id: `v-${destination.toLowerCase().replace(/\s+/g, '-')}-stay`,
-        name: `${destination} Beachfront & Scenic Resort`,
+    return res.json({
+      success: true,
+      data: {
+        query,
+        assistantReply: `I checked verified catalogued and provider records for "${destination}", but found no matching verified venues. Please try another destination or adjust your search constraints.`,
+        suggestions: [],
+        itineraryPlan: null,
+        totalSuggestions: 0,
         destination,
-        region: destination,
-        state: 'India',
-        type: 'stay',
-        category: 'popular',
-        rating: 4.86,
-        reviewCount: 168,
-        price: 4500,
-        priceFormatted: '₹4,500',
-        priceUnit: 'night',
-        priceType: 'verified',
-        coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80',
-        images: ['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop&q=80'],
-        amenities: ['Ocean Balcony', 'High-speed Wi-Fi', 'Complimentary Breakfast'],
-        description: `Premier lodging in ${destination} offering genuine local hospitality and immediate access to key sights.`,
+        constraintsValidated: true,
+        noMatch: true,
       },
-      {
-        id: `v-${destination.toLowerCase().replace(/\s+/g, '-')}-food`,
-        name: `${destination} Heritage Culinary Landmark`,
-        destination,
-        region: destination,
-        state: 'India',
-        type: 'restaurant',
-        category: 'food',
-        rating: 4.78,
-        reviewCount: 340,
-        price: 650,
-        priceFormatted: '₹650',
-        priceUnit: 'person (avg meal)',
-        priceType: 'indicative',
-        coverImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&auto=format&fit=crop&q=80',
-        images: ['https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&auto=format&fit=crop&q=80'],
-        amenities: ['Coastal Specialties', 'Vegetarian Options', 'AC Dining'],
-        description: `Celebrated dining destination in ${destination} serving authentic regional culinary delicacies.`,
-      },
-      {
-        id: `v-${destination.toLowerCase().replace(/\s+/g, '-')}-exp`,
-        name: `${destination} Coastal Vista & Landmark Walkway`,
-        destination,
-        region: destination,
-        state: 'India',
-        type: 'attraction',
-        category: 'beaches',
-        rating: 4.92,
-        reviewCount: 512,
-        price: null,
-        priceFormatted: 'Free',
-        priceUnit: 'person',
-        priceType: 'verified',
-        coverImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80',
-        images: ['https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&auto=format&fit=crop&q=80'],
-        amenities: ['Sunset Overlook', 'Photography Allowed', 'Pedestrian Promenade'],
-        description: `Iconic coastal viewpoint in ${destination} showcasing spectacular golden-hour views.`,
-      }
-    ];
+    });
   }
 
   let suggestions = [];
@@ -195,18 +165,14 @@ router.post('/concierge', async (req, res) => {
 
   // 1. Comprehensive Connected Plan Generation ("Plan 3 days", "Itinerary", "Trip to Goa")
   if (q.includes('plan') || q.includes('itinerary') || q.includes('days') || q.includes('trip') || q.includes('weekend') || q.includes('tour') || q.includes('schedule')) {
-    const stays = candidateVenues.filter(v => v.type === 'stay');
-    const dining = candidateVenues.filter(v => v.type === 'restaurant' || v.type === 'cafe');
-    const experiences = candidateVenues.filter(v => v.type !== 'stay' && v.type !== 'restaurant');
+    const stays = candidateVenues.filter(v => v.type === 'stay' || v.category === 'stay');
+    const dining = candidateVenues.filter(v => v.type === 'restaurant' || v.category === 'restaurant' || v.type === 'cafe');
+    const experiences = candidateVenues.filter(v => v.type !== 'stay' && v.type !== 'restaurant' && v.category !== 'stay');
 
-    const defaultStay = { id: 'v-default-stay', name: `${destination} Boutique Stay`, price: 4800, rating: 4.8, type: 'stay', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=900&auto=format&fit=crop&q=80' };
-    const defaultFood = { id: 'v-default-food', name: `${destination} Heritage Kitchen`, price: 850, rating: 4.7, type: 'restaurant', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&auto=format&fit=crop&q=80' };
-    const defaultExp = { id: 'v-default-exp', name: `${destination} Sunset Vista Point`, price: 600, rating: 4.9, type: 'attraction', destination, region: destination, coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=900&auto=format&fit=crop&q=80' };
-
-    const selectedStay = stays[0] || candidateVenues[0] || defaultStay;
-    const food1 = dining[0] || candidateVenues[1] || defaultFood;
+    const selectedStay = stays[0] || candidateVenues[0];
+    const food1 = dining[0] || candidateVenues[1] || selectedStay;
     const food2 = dining[1] || candidateVenues[2] || food1;
-    const exp1 = experiences[0] || candidateVenues[1] || defaultExp;
+    const exp1 = experiences[0] || candidateVenues[1] || selectedStay;
     const exp2 = experiences[1] || candidateVenues[2] || exp1;
 
     const stayCostPerPerson = Math.round((selectedStay.price || 5000) / (partySize || 4));
@@ -501,15 +467,16 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 // POST /api/ai/ask & POST /api/v1/trips/:id/ai/ask (PRD Section 7.3.3 Grounded RAG & Constraint Matching Engine)
-router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
+router.post(['/ask', '/trips/:id/ai/ask'], async (req, res) => {
   const tripId = req.params.id || req.body.tripId || 'trip-goa-2026';
-  const { userId = 'u_current', question = '', anchorItemId, budgetCeiling, dietaryConstraints, radiusKm = 2.0 } = req.body;
+  const { userId = 'u_current', question = '', anchorItemId, budgetCeiling, dietaryConstraints, radiusKm = 2.0, timeSlot } = req.body;
 
   if (!question || !question.trim()) {
     return res.status(400).json({ success: false, message: 'Question string is required' });
   }
 
-  const trip = store.trips.find(t => t.id === tripId) || store.trips[0];
+  const allVenues = await dataService.listVenues();
+  const trip = tripId ? (await dataService.getTripById(tripId)) : (await dataService.listTrips())[0];
   const qLower = question.toLowerCase();
 
   // Find anchor item coordinates if provided
@@ -518,7 +485,7 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
     for (const day of trip.days || []) {
       const item = (day.items || []).find(i => i.id === anchorItemId);
       if (item) {
-        const v = store.venues.find(v => v.id === item.venueId);
+        const v = allVenues.find(v => v.id === item.venueId);
         if (v && v.lat && v.lng) {
           anchorCoords = { lat: v.lat, lng: v.lng };
         } else if (v && v.coordinates) {
@@ -531,7 +498,7 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
 
   // Fallback anchor: first venue of the trip
   if (!anchorCoords && trip && trip.days && trip.days[0] && trip.days[0].items && trip.days[0].items[0]) {
-    const v = store.venues.find(v => v.id === trip.days[0].items[0].venueId);
+    const v = allVenues.find(v => v.id === trip.days[0].items[0].venueId);
     if (v) anchorCoords = { lat: v.lat || 15.492, lng: v.lng || 73.773 };
   }
 
@@ -556,14 +523,22 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
 
   // Determine candidate venues in destination
   const destName = trip?.destination?.split(',')[0]?.trim()?.toLowerCase() || 'goa';
-  let candidates = store.venues.filter(v => (v.destination || '').toLowerCase().includes(destName));
-  if (candidates.length === 0) candidates = store.venues;
+  let candidates = allVenues.filter(v => (v.destination || '').toLowerCase().includes(destName));
+  if (candidates.length === 0) candidates = allVenues;
 
-  // Apply Hard Constraint Filtering (PRD Section 6.2)
+  // Desired time slot (e.g. breakfast/morning vs lunch/afternoon vs dinner/evening)
+  const requestedSlot = timeSlot || (
+    qLower.includes('breakfast') || qLower.includes('morning') ? 'morning' :
+    qLower.includes('lunch') || qLower.includes('afternoon') ? 'afternoon' :
+    qLower.includes('dinner') || qLower.includes('evening') ? 'evening' :
+    qLower.includes('night') || qLower.includes('late') ? 'night' : null
+  );
+
+  // Apply Strict Hard Constraint Filtering (PRD Section 4.3 & 6.2)
   const validCandidates = candidates.filter(v => {
     const vPrice = v.pricePerPerson != null ? v.pricePerPerson : (v.price || 0);
 
-    // 1. Budget Ceiling
+    // 1. Budget Ceiling Hard Constraint
     if (ceiling && vPrice > ceiling) {
       return false;
     }
@@ -572,7 +547,7 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
     if (requiredDietary.length > 0) {
       const vTags = (v.dietaryTags || v.dietary || []).map(t => t.toLowerCase());
       const hasAll = requiredDietary.every(reqTag => 
-        vTags.some(t => t.includes(reqTag))
+        vTags.some(t => t.includes(reqTag.toLowerCase()))
       );
       if (!hasAll) return false;
     }
@@ -587,14 +562,38 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
       }
     }
 
+    // 4. Operating Hours Filter
+    if (requestedSlot && v.hours) {
+      const openHour = parseInt(String(v.hours.open || '09:00').split(':')[0], 10);
+      const closeHour = parseInt(String(v.hours.close || '22:00').split(':')[0], 10);
+      if (requestedSlot === 'morning' && openHour > 11) return false;
+      if ((requestedSlot === 'dinner' || requestedSlot === 'evening') && closeHour < 19) return false;
+      if (requestedSlot === 'night' && closeHour < 22) return false;
+    }
+
     return true;
   });
 
-  // Fallback: If strict filter returns none, relax proximity and budget gently but preserve grounding
-  const pool = validCandidates.length > 0 ? validCandidates : candidates;
+  // Strict PRD Requirement: When constraints cannot be met, return clear no-match without inventing fake records!
+  if (validCandidates.length === 0) {
+    return res.json({
+      answer: `No catalogued venues in ${destName.toUpperCase()} satisfied all specified constraints (budget ceiling: ₹${ceiling || 'unrestricted'}, dietary: [${requiredDietary.join(', ') || 'none'}], max radius: ${radiusKm} km). Please adjust constraints to discover alternative venues.`,
+      suggestedVenueId: null,
+      sourceEvents: [],
+      venueDetails: null,
+      constraintsSatisfied: {
+        budgetCeiling: false,
+        dietaryMatch: false,
+        proximityRadiusKm: false,
+      },
+      noMatch: true,
+      candidatesEvaluated: candidates.length,
+      generatedAt: new Date().toISOString(),
+    });
+  }
 
   // Weighted Ranking: 40% proximity + 30% rating + 30% budget headroom
-  const scored = pool.map(v => {
+  const scored = validCandidates.map(v => {
     const vPrice = v.pricePerPerson != null ? v.pricePerPerson : (v.price || 800);
     const vLat = v.lat || v.coordinates?.lat || 15.5;
     const vLng = v.lng || v.coordinates?.lng || 73.7;
@@ -609,8 +608,8 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const best = scored[0]?.venue || candidates[0];
-  const bestDist = scored[0]?.distKm || 1.2;
+  const best = scored[0].venue;
+  const bestDist = scored[0].distKm || 1.2;
   const walkMinutes = Math.max(3, Math.round((bestDist * 1000) / 80)); // 80 meters/min walking speed
 
   const bestPrice = best.pricePerPerson != null ? best.pricePerPerson : (best.price || 850);
@@ -631,13 +630,15 @@ router.post(['/ask', '/trips/:id/ai/ask'], (req, res) => {
       rating: best.rating,
       dietaryTags: best.dietaryTags || best.dietary || [],
       coordinates: { lat: best.lat || best.coordinates?.lat, lng: best.lng || best.coordinates?.lng },
-      hours: best.openingHours || best.hours || '10:00 AM - 10:00 PM',
+      hours: best.openingHours || (best.hours ? `${best.hours.open} - ${best.hours.close}` : '10:00 AM - 10:00 PM'),
+      source: best.source || best.sourceProvider || 'catalog',
     },
     constraintsSatisfied: {
       budgetCeiling: ceiling ? bestPrice <= ceiling : true,
-      dietaryMatch: requiredDietary.length === 0 || true,
-      proximityRadiusKm: bestDist <= radiusKm,
+      dietaryMatch: true,
+      proximityRadiusKm: anchorCoords ? bestDist <= radiusKm : true,
     },
+    noMatch: false,
     generatedAt: new Date().toISOString(),
   });
 });
