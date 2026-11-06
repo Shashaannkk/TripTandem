@@ -18,6 +18,7 @@ import { JoinTripPage } from './pages/JoinTripPage';
 
 import { useLocation } from 'react-router-dom';
 import { GeminiAiBubble } from './components/home/GeminiAiBubble';
+import { TripRhythmPlayer } from './components/common/TripRhythmPlayer';
 
 function AppLayout() {
   const location = useLocation();
@@ -54,6 +55,9 @@ function AppLayout() {
       {!isAuthPage && location.pathname !== '/ai-concierge' && (
         <GeminiAiBubble />
       )}
+
+      {/* Trip Rhythm — Multi-Source Road Trip Audio Player (Audius, Jamendo, SoundCloud, Archive) */}
+      {!isAuthPage && <TripRhythmPlayer />}
 
       {/* Global Real-time Toast Notifications */}
       <Toast />
