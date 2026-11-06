@@ -419,7 +419,7 @@ export const ExplorePage = () => {
     <div className="min-h-screen pb-20">
       
       {/* Top Search & Filter Console Bar */}
-      <div className="bg-white border-b border-brand-sand-border sticky top-20 z-20 shadow-subtle">
+      <div className="bg-white dark:bg-[#111C2E] border-b border-brand-sand-border dark:border-[#1E2D42] shadow-xs relative z-10 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
@@ -717,12 +717,12 @@ export const ExplorePage = () => {
       </div>
 
       {/* Main Content Layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
           
-          {/* Desktop Filter Sidebar */}
+          {/* Desktop Filter Sidebar - Fixed & Stable while places scroll up */}
           <div className="hidden lg:block lg:col-span-1">
-            <div className="sticky top-44">
+            <div className="sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain pr-1 custom-scrollbar transition-all duration-300">
               <FilterSidebar
                 filters={filters}
                 onFilterChange={handleFilterChange}
@@ -802,15 +802,20 @@ export const ExplorePage = () => {
                 </div>
               </div>
             ) : (
-              /* Grid View with guestCount passed to VenueCard */
+              /* Grid View with guestCount passed to VenueCard & Smooth Entrance Animations */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredVenues.map((venue) => (
-                  <VenueCard
+                {filteredVenues.map((venue, idx) => (
+                  <div
                     key={venue.id}
-                    venue={venue}
-                    guestCount={guests}
-                    onSelectVenue={(v) => setSelectedVenue(v)}
-                  />
+                    className="animate-fade-in-up"
+                    style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+                  >
+                    <VenueCard
+                      venue={venue}
+                      guestCount={guests}
+                      onSelectVenue={(v) => setSelectedVenue(v)}
+                    />
+                  </div>
                 ))}
               </div>
             )}
@@ -818,6 +823,18 @@ export const ExplorePage = () => {
           </div>
 
         </div>
+      </div>
+
+      {/* Mobile Floating Quick Filter Button (Stable while places scroll) */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden shadow-2xl animate-fade-in">
+        <button
+          type="button"
+          onClick={() => setIsMobileFilterOpen(true)}
+          className="px-5 py-2.5 rounded-full bg-brand-navy hover:bg-brand-navy-light text-white dark:bg-brand-orange dark:hover:bg-brand-orange-hover text-xs font-bold shadow-card flex items-center gap-2 active:scale-95 transition-all border border-white/20 cursor-pointer backdrop-blur-md"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span>Filters ({filteredVenues.length})</span>
+        </button>
       </div>
 
       {/* Mobile Filter Drawer Modal */}

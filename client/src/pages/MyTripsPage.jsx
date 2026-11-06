@@ -264,7 +264,7 @@ export const MyTripsPage = () => {
               <div
                 key={item.id}
                 onClick={() => handleOpenTrip(item)}
-                className={`group cursor-pointer bg-white dark:bg-[#111C2E] rounded-3xl p-4 border transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between space-y-4 shadow-subtle hover:shadow-card-hover ${
+                className={`group cursor-pointer bg-white dark:bg-[#111C2E] rounded-3xl p-4 border transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col justify-between space-y-4 shadow-subtle hover:shadow-card-hover card-hover-lift animate-fade-in-up ${
                   isActive 
                     ? 'border-brand-orange ring-2 ring-brand-orange/30' 
                     : 'border-brand-sand-border dark:border-[#1E2D42]'

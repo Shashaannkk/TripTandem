@@ -35,27 +35,27 @@ export const HeroSearch = () => {
       {/* Background ambient lighting */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-brand-orange-light/40 via-brand-sand to-transparent pointer-events-none rounded-b-[4rem]" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center animate-fade-in">
         
         {/* Brand Tagline & Headline */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-orange-light text-brand-orange text-xs font-semibold uppercase tracking-wider mb-6 border border-brand-orange/20 shadow-subtle">
-          <Sparkles className="w-3.5 h-3.5" />
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-orange-light text-brand-orange text-xs font-semibold uppercase tracking-wider mb-6 border border-brand-orange/20 shadow-subtle animate-fade-in-up">
+          <Sparkles className="w-3.5 h-3.5 animate-spin-slow" />
           <span>Plan your trip. Find your rhythm.</span>
         </div>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[1.15]">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[1.15] animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           Travel discovery meets{' '}
           <span className="text-brand-orange underline decoration-brand-yellow/60 decoration-wavy decoration-2">
             collaborative harmony
           </span>
         </h1>
 
-        <p className="mt-5 text-base sm:text-lg text-brand-navy/70 max-w-2xl mx-auto font-normal">
+        <p className="mt-5 text-base sm:text-lg text-brand-navy/70 max-w-2xl mx-auto font-normal animate-fade-in-up" style={{ animationDelay: '200ms' }}>
           Explore stunning stays and verified venues, invite friends to vote in real-time, balance shared budgets, and let grounded AI curate the journey.
         </p>
 
         {/* Search & AI Switcher Pill Tabs */}
-        <div className="mt-10 inline-flex p-1 rounded-full bg-brand-sand-muted border border-brand-sand-border shadow-inner">
+        <div className="mt-10 inline-flex p-1 rounded-full bg-brand-sand-muted border border-brand-sand-border shadow-inner animate-fade-in-up" style={{ animationDelay: '250ms' }}>
           <button
             onClick={() => setActiveTab('stays')}
             className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all ${

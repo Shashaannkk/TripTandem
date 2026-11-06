@@ -65,12 +65,13 @@ export const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredStays.slice(0, 6).map((stay) => (
-              <VenueCard
-                key={stay.id}
-                venue={stay}
-                onSelectVenue={(v) => setSelectedVenue(v)}
-              />
+            {filteredStays.slice(0, 6).map((stay, idx) => (
+              <div key={stay.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
+                <VenueCard
+                  venue={stay}
+                  onSelectVenue={(v) => setSelectedVenue(v)}
+                />
+              </div>
             ))}
           </div>
         </section>
@@ -100,12 +101,13 @@ export const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {diningAndExperiences.slice(0, 6).map((exp) => (
-              <VenueCard
-                key={exp.id}
-                venue={exp}
-                onSelectVenue={(v) => setSelectedVenue(v)}
-              />
+            {diningAndExperiences.slice(0, 6).map((exp, idx) => (
+              <div key={exp.id} className="animate-fade-in-up" style={{ animationDelay: `${idx * 40}ms` }}>
+                <VenueCard
+                  venue={exp}
+                  onSelectVenue={(v) => setSelectedVenue(v)}
+                />
+              </div>
             ))}
           </div>
         </section>

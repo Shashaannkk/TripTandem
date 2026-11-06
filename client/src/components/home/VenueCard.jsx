@@ -47,7 +47,7 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
   return (
     <div
       onClick={() => onSelectVenue && onSelectVenue(venue)}
-      className="group cursor-pointer bg-white rounded-3xl p-3 border border-brand-sand-border/80 shadow-subtle hover:shadow-card-hover transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between"
+      className="group cursor-pointer bg-white dark:bg-[#111C2E] rounded-3xl p-3 border border-brand-sand-border/80 dark:border-[#1E2D42] shadow-subtle hover:shadow-card-hover transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col justify-between card-hover-lift"
     >
       {/* Image Container with Carousel Controls */}
       <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-brand-sand">
