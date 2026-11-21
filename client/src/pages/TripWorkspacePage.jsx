@@ -13,6 +13,7 @@ import { SessionAnalyticsModal } from '../components/trip/SessionAnalyticsModal'
 import { LiveMultiplayerCanvas } from '../components/trip/LiveMultiplayerCanvas';
 import { useTrip } from '../context/TripContext';
 import { api } from '../services/api';
+import { fetchTripSnapshot } from '../services/cloudRelay';
 import { Calendar, Wallet, Sparkles, MessageSquare, Info, BarChart3 } from 'lucide-react';
 
 export const TripWorkspacePage = () => {
@@ -79,6 +80,13 @@ export const TripWorkspacePage = () => {
     api.getTripById(tripId).then(fetched => {
       if (fetched && fetched.id === tripId) {
         setTrip(fetched);
+      }
+    });
+
+    // 5. Query Cloud Relay Snapshot (for cross-device / direct URL visits)
+    fetchTripSnapshot(tripId).then(snapshot => {
+      if (snapshot && (norm(snapshot.id) === targetNorm || norm(snapshot.inviteCode) === targetNorm || (targetNorm.length >= 4 && norm(snapshot.inviteCode).includes(targetNorm)))) {
+        setTrip(snapshot);
       }
     });
   }, [tripId, setTrip]);

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
+import { publishTripSnapshot } from '../../services/cloudRelay';
 
 export const InviteModal = () => {
   const { isInviteModalOpen, setIsInviteModalOpen, trip, addMember } = useTrip();
@@ -31,6 +32,7 @@ export const InviteModal = () => {
   const shareableUrl = `${window.location.origin}/join/${inviteCode}`;
 
   const handleCopyLink = () => {
+    if (trip) publishTripSnapshot(trip);
     navigator.clipboard.writeText(shareableUrl);
     setCopiedLink(true);
     showToast('Trip invite link copied! Send it to your travel crew. 📋', 'success');
@@ -38,6 +40,7 @@ export const InviteModal = () => {
   };
 
   const handleCopyCode = () => {
+    if (trip) publishTripSnapshot(trip);
     navigator.clipboard.writeText(inviteCode);
     setCopiedCode(true);
     showToast(`Trip code ${inviteCode} copied! 🎟️`, 'success');

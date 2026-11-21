@@ -4,6 +4,7 @@ import { Users, Calendar, MapPin, Sparkles, ArrowRight, ShieldCheck, CheckCircle
 import { useTrip } from '../context/TripContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { fetchTripSnapshot } from '../services/cloudRelay';
 
 export const JoinTripPage = () => {
   const { inviteCode: paramCode } = useParams();
@@ -91,6 +92,14 @@ export const JoinTripPage = () => {
       if (!active) return;
       if (data) {
         setPreviewTrip(data);
+      }
+    });
+
+    // 5. Query Cloud Relay Snapshot (for cross-device / incognito previews)
+    fetchTripSnapshot(cleanCode).then(cloudTrip => {
+      if (!active) return;
+      if (cloudTrip) {
+        setPreviewTrip(cloudTrip);
       }
     });
 

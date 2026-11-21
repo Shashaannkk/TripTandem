@@ -5,6 +5,12 @@ import { INITIAL_TRIP, createBlankTrip } from '../data/mockData';
 import { useAuth } from './AuthContext';
 import { api } from '../services/api';
 import { BudgetEngine } from '../utils/budgetEngine';
+import { 
+  publishTripSnapshot, 
+  fetchTripSnapshot, 
+  broadcastCloudEvent, 
+  subscribeCloudRoom 
+} from '../services/cloudRelay';
 
 const TripContext = createContext();
 
@@ -103,6 +109,9 @@ export const TripProvider = ({ children }) => {
   const [focusedCards, setFocusedCards] = useState({});
   const lastCursorEmitRef = useRef(0);
   const typingTimeoutsRef = useRef({});
+  const clientIdRef = useRef(`client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+  const tripSyncTimerRef = useRef(null);
+  const [isCloudRelayConnected, setIsCloudRelayConnected] = useState(false);
 
   // Initialize Socket.IO connection (Live production & local aware)
   useEffect(() => {
@@ -165,204 +174,218 @@ export const TripProvider = ({ children }) => {
     }
   }, [socket, currentUser]);
 
-  // Cross-Tab Broadcast Helper (0ms latency local synchronization across windows/tabs)
+  // Cross-Tab & Cross-Device Broadcast Helper (0ms latency local + cloud relay synchronization)
   const broadcastSync = (data) => {
     try {
+      const payload = { ...data, originClientId: clientIdRef.current };
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         const bc = new BroadcastChannel('triptandem_live_sync');
-        bc.postMessage(data);
+        bc.postMessage(payload);
         bc.close();
+      }
+      const roomTarget = trip?.inviteCode || trip?.id || data?.inviteCode || data?.tripId;
+      if (roomTarget) {
+        broadcastCloudEvent(roomTarget, payload);
       }
     } catch (e) {}
   };
 
-  // Cross-Tab BroadcastChannel Listener
+  // Unified Real-Time Event Processor (handles both BroadcastChannel & Cloud Relay WebSocket)
+  const handleIncomingRealtimeEvent = useCallback((eventData) => {
+    if (!eventData) return;
+    if (eventData.originClientId && eventData.originClientId === clientIdRef.current) {
+      return; // Ignore own echoes
+    }
+
+    const { type, tripId, message, newMember, trip: broadcastTrip, changeDescription, updatedBy, user: eventUser, isTyping } = eventData;
+
+    // Cross-tab / cross-device trip state query responder
+    if (type === 'REQUEST_TRIP_STATE') {
+      const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const reqCode = norm(eventData?.inviteCode || eventData?.tripId);
+      const myCode = norm(trip?.inviteCode);
+      const myId = norm(trip?.id);
+      if (trip && (reqCode === myCode || reqCode === myId || (reqCode.length >= 4 && (myCode.includes(reqCode) || myId.includes(reqCode))))) {
+        broadcastSync({
+          type: 'PROVIDE_TRIP_STATE',
+          inviteCode: eventData?.inviteCode,
+          tripId: trip.id,
+          trip: trip,
+        });
+      }
+      return;
+    }
+
+    if (type === 'PROVIDE_TRIP_STATE' && broadcastTrip) {
+      const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const bCode = norm(broadcastTrip.inviteCode);
+      const bId = norm(broadcastTrip.id);
+      const currentCode = norm(trip?.inviteCode);
+      const currentId = norm(trip?.id);
+      if (currentCode === bCode || currentId === bId) {
+        setTrip(broadcastTrip);
+      }
+      return;
+    }
+
+    // Check if message belongs to current room
+    const normStr = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const currentTripIdNorm = normStr(trip?.id);
+    const currentTripCodeNorm = normStr(trip?.inviteCode);
+    const eventTripIdNorm = normStr(tripId);
+
+    const isCurrentRoom = !tripId || !trip?.id || 
+      eventTripIdNorm === currentTripIdNorm || 
+      eventTripIdNorm === currentTripCodeNorm ||
+      (eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm)));
+
+    if (!isCurrentRoom) return;
+
+    if (type === 'NEW_CHAT_MESSAGE' && message) {
+      setTrip(prev => {
+        if (!prev) return prev;
+        const chat = prev.chat || [];
+        if (chat.some(m => m.id === message.id)) return prev;
+        return { ...prev, chat: [...chat, message] };
+      });
+
+      if (!isChatOpen) {
+        setUnreadChatCount(prev => prev + 1);
+      }
+
+      if (message.senderId !== activeUser?.id && message.senderName !== activeUser?.name) {
+        if (message.isSystem) {
+          showToast(`✨ ${message.text}`, 'info');
+        } else {
+          showToast(`💬 ${message.senderName || 'Traveler'}: ${message.text?.slice(0, 45) || 'New message'}`, 'info');
+        }
+      }
+    }
+
+    if (type === 'USER_TYPING' && eventUser) {
+      const typingUser = eventUser;
+      if (typingUser.id !== activeUser?.id && typingUser.name !== activeUser?.name) {
+        setTypingUsers(prev => {
+          if (isTyping) {
+            if (typingTimeoutsRef.current[typingUser.id]) clearTimeout(typingTimeoutsRef.current[typingUser.id]);
+            typingTimeoutsRef.current[typingUser.id] = setTimeout(() => {
+              setTypingUsers(curr => curr.filter(u => u.id !== typingUser.id));
+            }, 3500);
+            return prev.some(u => u.id === typingUser.id) ? prev : [...prev, typingUser];
+          } else {
+            if (typingTimeoutsRef.current[typingUser.id]) clearTimeout(typingTimeoutsRef.current[typingUser.id]);
+            return prev.filter(u => u.id !== typingUser.id);
+          }
+        });
+      }
+    }
+
+    if (type === 'CURSOR_MOVE' && message) {
+      if (message.userId !== activeUser?.id) {
+        setRemoteCursors(prev => ({
+          ...prev,
+          [message.userId]: { ...message, timestamp: Date.now() },
+        }));
+      }
+    }
+
+    if (type === 'CARD_FOCUS' && message) {
+      if (message.userId !== activeUser?.id) {
+        setFocusedCards(prev => {
+          const next = { ...prev };
+          if (message.isFocused) {
+            next[message.itemId] = { ...message, timestamp: Date.now() };
+          } else {
+            delete next[message.itemId];
+          }
+          return next;
+        });
+      }
+    }
+
+    if (type === 'MEMBER_JOINED') {
+      const incomingMember = newMember;
+      if (incomingMember) {
+        setTrip(prev => {
+          const base = prev || broadcastTrip;
+          if (!base) return base;
+          const prevMembers = base.members || [];
+          const exists = prevMembers.some(
+            m => (m.id && incomingMember.id && m.id === incomingMember.id) ||
+                 (m.name && incomingMember.name && m.name.toLowerCase() === incomingMember.name.toLowerCase())
+          );
+          const updatedMembers = exists
+            ? prevMembers.map(m => (m.id === incomingMember.id || m.name?.toLowerCase() === incomingMember.name?.toLowerCase()) ? { ...m, ...incomingMember, status: 'online' } : m)
+            : [...prevMembers, { ...incomingMember, status: 'online' }];
+
+          const prevChat = base.chat || [];
+          const joinMsgText = `${incomingMember.name} joined the trip room as ${incomingMember.role || 'Planner'}! 🎉`;
+          const hasJoinMsg = prevChat.some(m => m.isSystem && m.text?.includes(incomingMember.name));
+          const updatedChat = hasJoinMsg ? prevChat : [
+            ...prevChat,
+            {
+              id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              tripId: base.id,
+              senderId: 'system',
+              senderName: 'Trip Concierge',
+              senderAvatar: incomingMember.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+              text: joinMsgText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              isSystem: true,
+            }
+          ];
+
+          const merged = {
+            ...base,
+            members: updatedMembers,
+            chat: updatedChat,
+          };
+
+          try {
+            localStorage.setItem('tt_active_trip', JSON.stringify(merged));
+            const allStored = localStorage.getItem('tt_all_trips');
+            const parsedAll = allStored ? JSON.parse(allStored) : [];
+            const updatedAll = [merged, ...parsedAll.filter(t => t.id !== merged.id)];
+            localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+          } catch (e) {}
+
+          return merged;
+        });
+
+        setActiveCollaborators(prev => [...prev.filter(c => c.id !== incomingMember.id && c.name !== incomingMember.name), { ...incomingMember, status: 'online' }]);
+
+        if (incomingMember.id !== activeUser?.id && incomingMember.name !== activeUser?.name) {
+          setLastJoinedMember(incomingMember);
+          showToast(`🎉 ${incomingMember.name} joined the trip room as ${incomingMember.role || 'Planner'}!`, 'success');
+          try { confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
+        }
+      }
+    }
+
+    if (type === 'ITINERARY_SYNC' && broadcastTrip) {
+      setTrip(prev => {
+        if (!prev) return broadcastTrip;
+        return {
+          ...broadcastTrip,
+          members: broadcastTrip.members && broadcastTrip.members.length >= (prev.members || []).length
+            ? broadcastTrip.members
+            : prev.members,
+        };
+      });
+      if (updatedBy && updatedBy.id !== activeUser?.id && updatedBy.name !== activeUser?.name) {
+        showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
+      }
+    }
+  }, [trip, activeUser, isChatOpen, showToast]);
+
+  // 1. Cross-Tab BroadcastChannel Listener (Same-browser multi-tab)
   useEffect(() => {
     let channel = null;
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         channel = new BroadcastChannel('triptandem_live_sync');
-
         channel.onmessage = (event) => {
-          const { type, tripId, message, newMember, trip: broadcastTrip, changeDescription, updatedBy, user: eventUser, isTyping } = event.data || {};
-
-          // Cross-tab trip state query responder
-          if (type === 'REQUEST_TRIP_STATE') {
-            const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const reqCode = norm(event.data?.inviteCode || event.data?.tripId);
-            const myCode = norm(trip?.inviteCode);
-            const myId = norm(trip?.id);
-            if (trip && (reqCode === myCode || reqCode === myId || (reqCode.length >= 4 && (myCode.includes(reqCode) || myId.includes(reqCode))))) {
-              broadcastSync({
-                type: 'PROVIDE_TRIP_STATE',
-                inviteCode: event.data?.inviteCode,
-                tripId: trip.id,
-                trip: trip,
-              });
-            }
-            return;
-          }
-
-          if (type === 'PROVIDE_TRIP_STATE' && broadcastTrip) {
-            const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const bCode = norm(broadcastTrip.inviteCode);
-            const bId = norm(broadcastTrip.id);
-            const currentCode = norm(trip?.inviteCode);
-            const currentId = norm(trip?.id);
-            if (currentCode === bCode || currentId === bId) {
-              setTrip(broadcastTrip);
-            }
-            return;
-          }
-
-          // Check if message belongs to current room
-          const normStr = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-          const currentTripIdNorm = normStr(trip?.id);
-          const currentTripCodeNorm = normStr(trip?.inviteCode);
-          const eventTripIdNorm = normStr(tripId);
-
-          const isCurrentRoom = !tripId || !trip?.id || 
-            eventTripIdNorm === currentTripIdNorm || 
-            eventTripIdNorm === currentTripCodeNorm ||
-            (eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm)));
-
-          if (!isCurrentRoom) return;
-
-          if (type === 'NEW_CHAT_MESSAGE' && message) {
-            setTrip(prev => {
-              if (!prev) return prev;
-              const chat = prev.chat || [];
-              if (chat.some(m => m.id === message.id)) return prev;
-              return { ...prev, chat: [...chat, message] };
-            });
-
-            if (!isChatOpen) {
-              setUnreadChatCount(prev => prev + 1);
-            }
-
-            if (message.senderId !== activeUser?.id && message.senderName !== activeUser?.name) {
-              if (message.isSystem) {
-                showToast(`✨ ${message.text}`, 'info');
-              } else {
-                showToast(`💬 ${message.senderName || 'Traveler'}: ${message.text?.slice(0, 45) || 'New message'}`, 'info');
-              }
-            }
-          }
-
-          if (type === 'USER_TYPING' && eventUser) {
-            const typingUser = eventUser;
-            if (typingUser.id !== activeUser?.id && typingUser.name !== activeUser?.name) {
-              setTypingUsers(prev => {
-                if (isTyping) {
-                  if (typingTimeoutsRef.current[typingUser.id]) clearTimeout(typingTimeoutsRef.current[typingUser.id]);
-                  typingTimeoutsRef.current[typingUser.id] = setTimeout(() => {
-                    setTypingUsers(curr => curr.filter(u => u.id !== typingUser.id));
-                  }, 3500);
-                  return prev.some(u => u.id === typingUser.id) ? prev : [...prev, typingUser];
-                } else {
-                  if (typingTimeoutsRef.current[typingUser.id]) clearTimeout(typingTimeoutsRef.current[typingUser.id]);
-                  return prev.filter(u => u.id !== typingUser.id);
-                }
-              });
-            }
-          }
-
-          if (type === 'CURSOR_MOVE' && message) {
-            if (message.userId !== activeUser?.id) {
-              setRemoteCursors(prev => ({
-                ...prev,
-                [message.userId]: { ...message, timestamp: Date.now() },
-              }));
-            }
-          }
-
-          if (type === 'CARD_FOCUS' && message) {
-            if (message.userId !== activeUser?.id) {
-              setFocusedCards(prev => {
-                const next = { ...prev };
-                if (message.isFocused) {
-                  next[message.itemId] = { ...message, timestamp: Date.now() };
-                } else {
-                  delete next[message.itemId];
-                }
-                return next;
-              });
-            }
-          }
-
-          if (type === 'MEMBER_JOINED') {
-            const incomingMember = newMember;
-            if (incomingMember) {
-              setTrip(prev => {
-                const base = prev || broadcastTrip;
-                if (!base) return base;
-                const prevMembers = base.members || [];
-                const exists = prevMembers.some(
-                  m => (m.id && incomingMember.id && m.id === incomingMember.id) ||
-                       (m.name && incomingMember.name && m.name.toLowerCase() === incomingMember.name.toLowerCase())
-                );
-                const updatedMembers = exists
-                  ? prevMembers.map(m => (m.id === incomingMember.id || m.name?.toLowerCase() === incomingMember.name?.toLowerCase()) ? { ...m, ...incomingMember, status: 'online' } : m)
-                  : [...prevMembers, { ...incomingMember, status: 'online' }];
-
-                const prevChat = base.chat || [];
-                const joinMsgText = `${incomingMember.name} joined the trip room as ${incomingMember.role || 'Planner'}! 🎉`;
-                const hasJoinMsg = prevChat.some(m => m.isSystem && m.text?.includes(incomingMember.name));
-                const updatedChat = hasJoinMsg ? prevChat : [
-                  ...prevChat,
-                  {
-                    id: `msg-sys-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    tripId: base.id,
-                    senderId: 'system',
-                    senderName: 'Trip Concierge',
-                    senderAvatar: incomingMember.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-                    text: joinMsgText,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    isSystem: true,
-                  }
-                ];
-
-                const merged = {
-                  ...base,
-                  members: updatedMembers,
-                  chat: updatedChat,
-                };
-
-                try {
-                  localStorage.setItem('tt_active_trip', JSON.stringify(merged));
-                  const allStored = localStorage.getItem('tt_all_trips');
-                  const parsedAll = allStored ? JSON.parse(allStored) : [];
-                  const updatedAll = [merged, ...parsedAll.filter(t => t.id !== merged.id)];
-                  localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
-                } catch (e) {}
-
-                return merged;
-              });
-
-              setActiveCollaborators(prev => [...prev.filter(c => c.id !== incomingMember.id && c.name !== incomingMember.name), { ...incomingMember, status: 'online' }]);
-
-              if (incomingMember.id !== activeUser?.id && incomingMember.name !== activeUser?.name) {
-                setLastJoinedMember(incomingMember);
-                showToast(`🎉 ${incomingMember.name} joined the trip room as ${incomingMember.role || 'Planner'}!`, 'success');
-                try { confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
-              }
-            }
-          }
-
-          if (type === 'ITINERARY_SYNC' && broadcastTrip) {
-            setTrip(prev => {
-              if (!prev) return broadcastTrip;
-              return {
-                ...broadcastTrip,
-                members: broadcastTrip.members && broadcastTrip.members.length >= (prev.members || []).length
-                  ? broadcastTrip.members
-                  : prev.members,
-              };
-            });
-            if (updatedBy && updatedBy.id !== activeUser?.id && updatedBy.name !== activeUser?.name) {
-              showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
-            }
-          }
+          handleIncomingRealtimeEvent(event.data);
         };
       }
     } catch (e) {
@@ -372,7 +395,45 @@ export const TripProvider = ({ children }) => {
     return () => {
       if (channel) channel.close();
     };
-  }, [trip?.id, trip?.inviteCode, activeUser?.id, activeUser?.name, isChatOpen]);
+  }, [handleIncomingRealtimeEvent]);
+
+  // 2. Cloud Relay WebSocket Listener (Cross-Device, Mobile, Cross-Browser & Incognito)
+  useEffect(() => {
+    const code = trip?.inviteCode || trip?.id;
+    if (!code) return;
+
+    setIsCloudRelayConnected(true);
+    const unsub = subscribeCloudRoom(code, (payload) => {
+      handleIncomingRealtimeEvent(payload);
+    });
+
+    return () => {
+      setIsCloudRelayConnected(false);
+      unsub();
+    };
+  }, [trip?.inviteCode, trip?.id, handleIncomingRealtimeEvent]);
+
+  // 3. Resilient LocalStorage & Cloud Snapshot Auto-Persist on Trip Mutation
+  useEffect(() => {
+    if (!trip || !trip.id) return;
+    try {
+      localStorage.setItem('tt_active_trip', JSON.stringify(trip));
+      const allStored = localStorage.getItem('tt_all_trips');
+      const parsedAll = allStored ? JSON.parse(allStored) : [];
+      const updatedAll = [trip, ...parsedAll.filter(t => t.id !== trip.id)];
+      localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+    } catch (e) {}
+
+    // Debounced authoritative snapshot publish to Cloud Relay (700ms)
+    if (tripSyncTimerRef.current) clearTimeout(tripSyncTimerRef.current);
+    tripSyncTimerRef.current = setTimeout(() => {
+      publishTripSnapshot(trip);
+    }, 700);
+
+    return () => {
+      if (tripSyncTimerRef.current) clearTimeout(tripSyncTimerRef.current);
+    };
+  }, [trip]);
 
   // Multi-tab storage event synchronization
   useEffect(() => {
@@ -961,6 +1022,16 @@ export const TripProvider = ({ children }) => {
         });
       }
 
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Added "${newItem.title}" to Day ${day.dayNumber}`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       showToast(`Added "${newItem.title}" to Day ${day.dayNumber} as Draft! ✨`, 'success');
       return next;
     });
@@ -986,6 +1057,17 @@ export const TripProvider = ({ children }) => {
           updatedBy: currentUser || activeUser,
         });
       }
+
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Updated activity details`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       return next;
     });
   };
@@ -1012,6 +1094,17 @@ export const TripProvider = ({ children }) => {
           updatedBy: currentUser,
         });
       }
+
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Removed "${removedName}"`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       showToast(`Removed "${removedName}"`, 'info');
       return next;
     });
@@ -1393,7 +1486,17 @@ export const TripProvider = ({ children }) => {
       targetTrip = JSON.parse(JSON.stringify(trip));
     }
 
-    // 5. If STILL not found anywhere, create a clean blank trip canvas
+    // 5. Query Cloud Relay Snapshot (for cross-device / incognito sessions)
+    if (!targetTrip || !targetTrip.days?.some(d => (d.items || []).length > 0)) {
+      try {
+        const cloudSnapshot = await fetchTripSnapshot(cleanCode);
+        if (cloudSnapshot && (cloudSnapshot.title || cloudSnapshot.destination)) {
+          targetTrip = JSON.parse(JSON.stringify(cloudSnapshot));
+        }
+      } catch (e) {}
+    }
+
+    // 6. If STILL not found anywhere, create a clean blank trip canvas
     if (!targetTrip) {
       targetTrip = createBlankTrip('Custom Destination', `Trip (${cleanCode})`, 3, 30000, joiningUser);
       targetTrip.inviteCode = cleanCode;
@@ -1474,18 +1577,21 @@ export const TripProvider = ({ children }) => {
       });
     }
 
-    // Cross-tab broadcast for dual-window local collaboration
+    // Cross-tab & Cloud Relay broadcast
     broadcastSync({
       type: 'MEMBER_JOINED',
       tripId: targetTrip.id,
+      inviteCode: targetTrip.inviteCode,
       newMember: newMemberObj,
       trip: targetTrip,
     });
     broadcastSync({
       type: 'NEW_CHAT_MESSAGE',
       tripId: targetTrip.id,
+      inviteCode: targetTrip.inviteCode,
       message: joinMsg,
     });
+    publishTripSnapshot(targetTrip);
 
     try {
       confetti({
@@ -1520,6 +1626,7 @@ export const TripProvider = ({ children }) => {
 
     setTrip(created);
     setActiveDayIndex(0);
+    publishTripSnapshot(created);
 
     try {
       localStorage.setItem('tt_active_trip', JSON.stringify(created));
@@ -1529,10 +1636,11 @@ export const TripProvider = ({ children }) => {
       localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
     } catch (e) {}
 
-    // Broadcast cross-tab
+    // Broadcast cross-tab and cloud relay
     broadcastSync({
       type: 'TRIP_CREATED',
       tripId: created.id,
+      inviteCode: created.inviteCode,
       trip: created,
     });
 
@@ -1978,7 +2086,8 @@ export const TripProvider = ({ children }) => {
         isCreateTripModalOpen,
         setIsCreateTripModalOpen,
         createNewBlankTrip,
-        isSocketConnected,
+        isSocketConnected: isSocketConnected || isCloudRelayConnected,
+        isCloudRelayConnected,
         unreadChatCount,
         setUnreadChatCount,
         lastJoinedMember,
