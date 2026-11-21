@@ -76,9 +76,15 @@ export function setupSocketIO(io) {
 
   // Helper to verify user permissions for mutating operations on a trip
   async function authorizeSocketTripAction(socket, tripId, allowedRoles = ['Planner', 'Leader', 'Admin']) {
-    const activeUser = socket.user || socket.userData;
+    let activeUser = socket.user || socket.userData;
     if (!activeUser || !activeUser.id) {
-      return { authorized: false, error: 'Unauthorized: authentication token required.' };
+      const roomPresence = roomPresences.get(tripId)?.get(socket.id);
+      if (roomPresence && roomPresence.id) {
+        activeUser = roomPresence;
+        socket.userData = roomPresence;
+      } else {
+        return { authorized: false, error: 'Unauthorized: authentication token or user identity required.' };
+      }
     }
 
     if (activeUser.role === 'Admin') {
@@ -94,7 +100,7 @@ export function setupSocketIO(io) {
     const targetUserEmail = activeUser.email ? activeUser.email.toLowerCase() : null;
     const targetUserName = activeUser.name ? activeUser.name.toLowerCase() : null;
 
-    const member = (trip.members || []).find(m => {
+    let member = (trip.members || []).find(m => {
       const mId = m.id || m._id ? String(m.id || m._id) : null;
       const mEmail = m.email ? m.email.toLowerCase() : null;
       const mName = m.name ? m.name.toLowerCase() : null;
@@ -105,6 +111,23 @@ export function setupSocketIO(io) {
         (mName && targetUserName && mName === targetUserName)
       );
     });
+
+    const isInRoom = (socket.rooms && socket.rooms.has(`trip_${tripId}`)) || socket.tripId === tripId;
+    if (!member && isInRoom && (activeUser.id || activeUser.name)) {
+      // Auto-register connected room participant as member so real-time chat & collaboration never drop
+      const newMemberObj = {
+        id: activeUser.id || `user-${Date.now().toString(36)}`,
+        name: activeUser.name || 'Traveler',
+        email: activeUser.email || '',
+        role: activeUser.role || 'Planner',
+        avatar: activeUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        color: activeUser.color || '#FF6B45',
+        status: 'online',
+        joinedAt: new Date().toISOString(),
+      };
+      await dataService.addMemberToTrip(tripId, newMemberObj);
+      member = newMemberObj;
+    }
 
     if (!member) {
       return { authorized: false, error: 'Forbidden: you are not a member of this trip room.' };
@@ -144,7 +167,7 @@ export function setupSocketIO(io) {
         const effectiveUser = socket.user || user || {
           id: `guest-${socket.id.slice(0, 5)}`,
           name: 'Guest Traveler',
-          role: 'Viewer',
+          role: (user && user.role) || 'Planner',
         };
 
         socket.join(`trip_${tripId}`);
@@ -410,6 +433,13 @@ export function setupSocketIO(io) {
         const verified = await resolveSocketUser(token);
         if (verified) socket.user = verified;
       }
+      if (!socket.userData && (socket.user || message?.senderId)) {
+        socket.userData = socket.user || {
+          id: message.senderId,
+          name: message.senderName || 'Traveler',
+          role: message.role || 'Planner',
+        };
+      }
       const authCheck = await authorizeSocketTripAction(socket, tripId, ['Viewer', 'Planner', 'Leader', 'Admin']);
       if (!authCheck.authorized) {
         socket.emit('trip.error', { event: 'send_message', message: authCheck.error });
@@ -440,11 +470,14 @@ export function setupSocketIO(io) {
       });
     });
 
-    socket.on('message_reaction', async ({ tripId, messageId, emoji }) => {
+    socket.on('message_reaction', async ({ tripId, messageId, emoji, user: reactionUser }) => {
+      if (!socket.userData && (socket.user || reactionUser?.id)) {
+        socket.userData = socket.user || reactionUser;
+      }
       const authCheck = await authorizeSocketTripAction(socket, tripId, ['Viewer', 'Planner', 'Leader', 'Admin']);
       if (!authCheck.authorized) return;
 
-      const user = socket.user || socket.userData;
+      const user = socket.user || socket.userData || reactionUser;
       const trip = await dataService.getTripById(tripId);
       let updatedReactions = null;
 

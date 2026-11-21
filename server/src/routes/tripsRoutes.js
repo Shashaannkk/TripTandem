@@ -154,17 +154,17 @@ router.post('/join-by-code', optionalAuthToken, async (req, res) => {
     return res.status(404).json({ success: false, message: `Trip not found for invite code ${cleanCode}` });
   }
 
-  const effectiveUser = req.user || user;
-  if (!effectiveUser || (!effectiveUser.id && !effectiveUser.name)) {
-    return res.status(400).json({ success: false, message: 'Valid user object required to join' });
-  }
+  const effectiveUser = req.user || user || {};
+  const memberId = effectiveUser.id || `user-guest-${Date.now().toString(36)}-${uuidv4().slice(0, 4)}`;
+  const memberName = effectiveUser.name || 'Traveler';
+  const memberRole = role || effectiveUser.role || 'Planner';
 
   const newMemberObj = {
-    id: effectiveUser.id || `user-${uuidv4().slice(0, 8)}`,
-    name: effectiveUser.name || 'Traveler',
-    email: effectiveUser.email || '',
-    role: role || effectiveUser.role || 'Planner',
-    avatar: effectiveUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    id: memberId,
+    name: memberName,
+    email: effectiveUser.email || `${memberName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
+    role: memberRole,
+    avatar: effectiveUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     color: effectiveUser.color || '#FF6B45',
     upiId: effectiveUser.upiId || '',
     status: 'online',

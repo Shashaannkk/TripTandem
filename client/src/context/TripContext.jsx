@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import confetti from 'canvas-confetti';
 import { INITIAL_TRIP } from '../data/mockData';
@@ -10,6 +10,41 @@ const TripContext = createContext();
 
 export const TripProvider = ({ children }) => {
   const { currentUser, showToast } = useAuth();
+
+  // Resilient traveler identity fallback (for guest travelers collaborating before explicit login)
+  const getActiveUser = useCallback(() => {
+    if (currentUser && currentUser.id) return currentUser;
+    try {
+      const saved = localStorage.getItem('tt_traveler_identity');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.name) return parsed;
+      }
+    } catch {}
+    let guestId = localStorage.getItem('tt_guest_id');
+    if (!guestId) {
+      guestId = `user-guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      localStorage.setItem('tt_guest_id', guestId);
+    }
+    const guestUser = {
+      id: guestId,
+      name: 'Traveler',
+      email: 'traveler@triptandem.travel',
+      role: 'Planner',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      color: '#FF6B45',
+      status: 'online',
+    };
+    try {
+      localStorage.setItem('tt_traveler_identity', JSON.stringify(guestUser));
+    } catch {}
+    return guestUser;
+  }, [currentUser]);
+
+  const activeUser = useMemo(() => {
+    return currentUser || getActiveUser();
+  }, [currentUser, getActiveUser]);
+
   const [trip, setTrip] = useState(() => {
     const saved = localStorage.getItem('tt_active_trip');
     return saved ? JSON.parse(saved) : INITIAL_TRIP;
@@ -176,7 +211,7 @@ export const TripProvider = ({ children }) => {
     if (!socket || !trip?.id) return;
 
     const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
-    const joinPayload = { tripId: trip.id, user: currentUser, token: token || undefined };
+    const joinPayload = { tripId: trip.id, user: activeUser, token: token || undefined };
 
     const emitJoin = () => {
       socket.emit('join_trip', joinPayload, (ack) => {
@@ -828,14 +863,15 @@ export const TripProvider = ({ children }) => {
   const sendChatMessage = (text, attachment = null, customSender = null) => {
     if (!text?.trim() && !attachment) return;
     const sender = customSender || {
-      id: currentUser.id,
-      name: currentUser.name,
-      avatar: currentUser.avatar,
+      id: activeUser.id,
+      name: activeUser.name,
+      avatar: activeUser.avatar,
+      role: activeUser.role,
       isAi: false,
     };
 
     const newMsg = {
-      id: `msg-${Date.now().toString(36)}`,
+      id: `msg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       senderId: sender.id,
       senderName: sender.name,
       senderAvatar: sender.avatar,
@@ -860,7 +896,7 @@ export const TripProvider = ({ children }) => {
           title: attachment.title || 'Shared Expense',
           category: attachment.category || 'food',
           amount: Number(attachment.amount) || 0,
-          paidBy: attachment.paidBy || currentUser.name,
+          paidBy: attachment.paidBy || activeUser.name,
           splitWith: attachment.splitWith || next.members.map(m => m.name),
           date: new Date().toISOString().split('T')[0],
           type: 'actual',
@@ -899,12 +935,12 @@ export const TripProvider = ({ children }) => {
       if (!msg.reactions) msg.reactions = {};
       if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
 
-      const userIdx = msg.reactions[emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === currentUser.id);
+      const userIdx = msg.reactions[emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === activeUser.id);
       if (userIdx >= 0) {
         msg.reactions[emoji].splice(userIdx, 1);
         if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
       } else {
-        msg.reactions[emoji].push({ id: currentUser.id, name: currentUser.name });
+        msg.reactions[emoji].push({ id: activeUser.id, name: activeUser.name });
       }
       return next;
     });
@@ -915,7 +951,7 @@ export const TripProvider = ({ children }) => {
         tripId: trip.id,
         messageId,
         emoji,
-        user: { id: currentUser.id, name: currentUser.name },
+        user: { id: activeUser.id, name: activeUser.name },
         token: token || undefined,
       });
     }
@@ -952,17 +988,20 @@ export const TripProvider = ({ children }) => {
   };
 
   // Join trip with invite code or shared link
-  const joinTripByCode = async (inviteCode, requestedRole = 'Planner') => {
+  const joinTripByCode = async (inviteCode, requestedRole = 'Planner', customUser = null) => {
     if (!inviteCode || !inviteCode.trim()) {
       showToast('Please enter an invite code to join a trip', 'error');
       return null;
     }
     const cleanCode = inviteCode.trim().toUpperCase();
+    const joiningUser = customUser || activeUser;
+    const memberName = joiningUser?.name || 'Traveler';
+    const memberRole = requestedRole || joiningUser?.role || 'Planner';
 
     // 1. Authoritative Server Join via API
     let targetTrip = null;
     try {
-      const serverRes = await api.joinTripByCode(cleanCode, currentUser, requestedRole);
+      const serverRes = await api.joinTripByCode(cleanCode, joiningUser, memberRole);
       if (serverRes) {
         targetTrip = serverRes;
       }
@@ -989,15 +1028,13 @@ export const TripProvider = ({ children }) => {
       }
     }
 
-    const memberName = currentUser?.name || 'Traveler';
-    const memberRole = requestedRole || currentUser?.role || 'Planner';
     const newMemberObj = {
-      id: currentUser?.id || `user-${Date.now()}`,
+      id: joiningUser?.id || `user-${Date.now()}`,
       name: memberName,
-      email: currentUser?.email || 'traveler@triptandem.travel',
+      email: joiningUser?.email || `${memberName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
       role: memberRole,
-      avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      color: '#FF6B45',
+      avatar: joiningUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      color: joiningUser?.color || '#FF6B45',
       status: 'online',
     };
 
@@ -1035,14 +1072,14 @@ export const TripProvider = ({ children }) => {
     // Emit live socket events
     if (socket) {
       const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
-      socket.emit('join_trip', { tripId: targetTrip.id, user: currentUser, token: token || undefined });
+      socket.emit('join_trip', { tripId: targetTrip.id, user: joiningUser, token: token || undefined });
       socket.emit('member_join', { tripId: targetTrip.id, member: newMemberObj, trip: targetTrip, token: token || undefined });
       socket.emit('send_message', { tripId: targetTrip.id, message: joinMsg, token: token || undefined });
       socket.emit('itinerary_change', {
         tripId: targetTrip.id,
         trip: targetTrip,
         changeDescription: `${memberName} joined the trip room`,
-        updatedBy: currentUser,
+        updatedBy: joiningUser,
         token: token || undefined,
       });
     }
@@ -1204,7 +1241,7 @@ export const TripProvider = ({ children }) => {
     if (socket && trip) {
       socket.emit('typing_status', {
         tripId: trip.id,
-        user: currentUser,
+        user: activeUser,
         isTyping,
       });
     }
@@ -1487,6 +1524,7 @@ export const TripProvider = ({ children }) => {
       value={{
         trip,
         setTrip,
+        activeUser,
         activeDayIndex,
         setActiveDayIndex,
         activeCollaborators,

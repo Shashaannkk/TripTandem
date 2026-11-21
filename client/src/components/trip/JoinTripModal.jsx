@@ -6,8 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 
 export const JoinTripModal = () => {
   const navigate = useNavigate();
-  const { isJoinModalOpen, setIsJoinModalOpen, joinTripByCode } = useTrip();
+  const { isJoinModalOpen, setIsJoinModalOpen, joinTripByCode, activeUser } = useTrip();
   const { currentUser } = useAuth();
+  const effectiveUser = currentUser || activeUser;
 
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [isJoining, setIsJoining] = useState(false);
@@ -26,7 +27,7 @@ export const JoinTripModal = () => {
 
     setIsJoining(true);
     try {
-      const targetTrip = await joinTripByCode(inviteCodeInput.trim());
+      const targetTrip = await joinTripByCode(inviteCodeInput.trim(), 'Planner', effectiveUser);
       if (targetTrip) {
         setIsJoinModalOpen(false);
         setInviteCodeInput('');
@@ -77,8 +78,8 @@ export const JoinTripModal = () => {
         {/* User Identity Confirmation */}
         <div className="flex items-center gap-3 p-3 rounded-2xl bg-brand-sand dark:bg-slate-800/80 border border-brand-sand-border/70 dark:border-slate-700">
           <img
-            src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-            alt={currentUser?.name || 'Traveler'}
+            src={effectiveUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+            alt={effectiveUser?.name || 'Traveler'}
             className="w-9 h-9 rounded-full object-cover ring-2 ring-brand-teal"
           />
           <div className="flex-1 min-w-0">
@@ -86,7 +87,7 @@ export const JoinTripModal = () => {
               Joining group as:
             </span>
             <div className="text-xs font-bold text-brand-navy dark:text-white truncate">
-              {currentUser?.name || 'Traveler'} <span className="font-normal text-brand-teal">({currentUser?.role || 'Explorer'})</span>
+              {effectiveUser?.name || 'Traveler'} <span className="font-normal text-brand-teal">({effectiveUser?.role || 'Planner'})</span>
             </div>
           </div>
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />

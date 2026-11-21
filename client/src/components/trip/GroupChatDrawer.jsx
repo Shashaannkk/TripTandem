@@ -35,9 +35,11 @@ export const GroupChatDrawer = () => {
     emitTyping, 
     typingUsers, 
     setIsInviteModalOpen,
-    acceptAiSuggestion
+    acceptAiSuggestion,
+    activeUser: contextActiveUser,
   } = useTrip();
   const { currentUser, formatPrice, showToast } = useAuth();
+  const effectiveUser = currentUser || contextActiveUser;
 
   const [inputText, setInputText] = useState('');
   const [showBillForm, setShowBillForm] = useState(false);
@@ -53,7 +55,7 @@ export const GroupChatDrawer = () => {
   const [billTitle, setBillTitle] = useState('');
   const [billAmount, setBillAmount] = useState('');
   const [billCategory, setBillCategory] = useState('food');
-  const [billPaidBy, setBillPaidBy] = useState(currentUser?.name || 'Alex Morgan');
+  const [billPaidBy, setBillPaidBy] = useState(effectiveUser?.name || 'Alex Morgan');
   const [billReceiptImage, setBillReceiptImage] = useState(null);
 
   const messagesEndRef = useRef(null);
@@ -244,13 +246,13 @@ export const GroupChatDrawer = () => {
           <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400">Chatting as:</span>
           <div className="flex items-center gap-1.5 font-bold text-brand-navy dark:text-slate-200">
             <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-              alt={currentUser?.name || 'Traveler'}
+              src={effectiveUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+              alt={effectiveUser?.name || 'Traveler'}
               className="w-5 h-5 rounded-full object-cover ring-1 ring-brand-teal"
             />
-            <span className="truncate max-w-[120px]">{(currentUser?.name || 'Traveler').split(' ')[0]}</span>
+            <span className="truncate max-w-[120px]">{(effectiveUser?.name || 'Traveler').split(' ')[0]}</span>
             <span className="text-[10px] font-normal text-brand-teal bg-brand-teal-light dark:bg-teal-950/50 px-1 rounded">
-              {currentUser?.role || 'Explorer'}
+              {effectiveUser?.role || 'Planner'}
             </span>
           </div>
         </div>
@@ -282,7 +284,7 @@ export const GroupChatDrawer = () => {
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-brand-sand/30 dark:bg-slate-950/40">
         {(trip?.chat || []).map((msg) => {
-          const isMe = msg.senderId === currentUser?.id;
+          const isMe = msg.senderId === effectiveUser?.id;
           const isSystem = msg.senderId === 'system';
           const isAi = msg.isAi || msg.senderId === 'google-gemini-ai';
           const hasBill = msg.attachment && msg.attachment.type === 'bill';
@@ -511,7 +513,7 @@ export const GroupChatDrawer = () => {
                     {Object.entries(msg.reactions).map(([emoji, usersList]) => {
                       if (!usersList || usersList.length === 0) return null;
                       const hasUserReacted = usersList.some(
-                        (u) => (typeof u === 'string' ? u : u.id) === currentUser?.id
+                        (u) => (typeof u === 'string' ? u : u.id) === effectiveUser?.id
                       );
                       const reactingNames = usersList
                         .map((u) => (typeof u === 'string' ? u : u.name))

@@ -156,7 +156,19 @@ export const dataService = {
   async getTripById(id) {
     assertProductionDB();
     if (isDBConnected()) {
-      return await Trip.findOne({ id }).lean();
+      let trip = await Trip.findOne({ id }).lean();
+      if (!trip) {
+        const seedTrip = store.trips.find(t => t.id === id);
+        if (seedTrip) {
+          try {
+            const doc = await Trip.create(seedTrip);
+            trip = doc.toObject();
+          } catch (e) {
+            trip = seedTrip;
+          }
+        }
+      }
+      return trip;
     }
     return store.trips.find(t => t.id === id) || null;
   },
@@ -166,9 +178,23 @@ export const dataService = {
     if (!code) return null;
     const normalized = code.trim().toUpperCase();
     if (isDBConnected()) {
-      return await Trip.findOne({
+      let trip = await Trip.findOne({
         $or: [{ inviteCode: normalized }, { id: normalized.toLowerCase() }],
       }).lean();
+      if (!trip) {
+        const seedTrip = store.trips.find(
+          t => (t.inviteCode || '').toUpperCase() === normalized || t.id.toUpperCase() === normalized
+        );
+        if (seedTrip) {
+          try {
+            const doc = await Trip.create(seedTrip);
+            trip = doc.toObject();
+          } catch (e) {
+            trip = seedTrip;
+          }
+        }
+      }
+      return trip;
     }
     return (
       store.trips.find(

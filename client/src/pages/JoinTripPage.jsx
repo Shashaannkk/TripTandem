@@ -9,8 +9,9 @@ import { api } from '../services/api';
 export const JoinTripPage = () => {
   const { inviteCode: paramCode } = useParams();
   const navigate = useNavigate();
-  const { trip: activeTrip, joinTripByCode } = useTrip();
+  const { trip: activeTrip, joinTripByCode, activeUser } = useTrip();
   const { currentUser } = useAuth();
+  const effectiveUser = currentUser || activeUser;
 
   const [code, setCode] = useState(paramCode || 'TANDEM-GOA-77');
   const [selectedRole, setSelectedRole] = useState('Planner'); // 'Planner' | 'Viewer' (PRD Section 5.1/5.2)
@@ -31,7 +32,7 @@ export const JoinTripPage = () => {
   const handleJoinTrip = async () => {
     setIsJoining(true);
     try {
-      const joinedTrip = await joinTripByCode(code, selectedRole);
+      const joinedTrip = await joinTripByCode(code, selectedRole, effectiveUser);
       if (joinedTrip) {
         navigate(`/workspace/${joinedTrip.id}`);
       }
@@ -159,15 +160,15 @@ export const JoinTripPage = () => {
             <span className="text-brand-navy/60 dark:text-slate-400">Joining as:</span>
             <div className="flex items-center gap-2 font-medium">
               <img
-                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                alt={currentUser?.name || 'Traveler'}
+                src={effectiveUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                alt={effectiveUser?.name || 'Traveler'}
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
                 }}
                 className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-teal"
               />
-              <span>{currentUser?.name || 'Traveler'}</span>
+              <span>{effectiveUser?.name || 'Traveler'}</span>
             </div>
           </div>
 
