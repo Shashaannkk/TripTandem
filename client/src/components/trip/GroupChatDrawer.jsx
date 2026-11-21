@@ -55,7 +55,7 @@ export const GroupChatDrawer = () => {
   const [billTitle, setBillTitle] = useState('');
   const [billAmount, setBillAmount] = useState('');
   const [billCategory, setBillCategory] = useState('food');
-  const [billPaidBy, setBillPaidBy] = useState(effectiveUser?.name || 'Alex Morgan');
+  const [billPaidBy, setBillPaidBy] = useState(effectiveUser?.name || 'Traveler');
   const [billReceiptImage, setBillReceiptImage] = useState(null);
 
   const messagesEndRef = useRef(null);

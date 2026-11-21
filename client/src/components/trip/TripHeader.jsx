@@ -29,7 +29,12 @@ export const TripHeader = () => {
     connectionQuality = 'fast',
     isLeaderConnected = true,
     transferLeaderRole,
-    toggleRoomLock
+    toggleRoomLock,
+    isSocketConnected = false,
+    unreadChatCount = 0,
+    lastJoinedMember,
+    clearLastJoinedMember,
+    activeUser
   } = useTrip();
 
   const { formatPrice, currentUser } = useAuth();
@@ -40,6 +45,35 @@ export const TripHeader = () => {
   return (
     <div className="bg-white border-b border-brand-sand-border shadow-subtle relative">
       
+      {/* Real-Time Party Joined Alert Banner */}
+      {lastJoinedMember && (
+        <div className="bg-gradient-to-r from-brand-orange via-brand-yellow to-brand-teal text-white px-4 py-2.5 text-xs flex items-center justify-between shadow-md animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎉</span>
+            <span className="font-bold">{lastJoinedMember.name}</span>
+            <span>just joined the trip planning party as <strong>{lastJoinedMember.role || 'Planner'}</strong>!</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsChatOpen(true);
+                clearLastJoinedMember();
+              }}
+              className="px-3 py-1 rounded-full bg-white text-brand-navy font-bold text-[11px] hover:bg-brand-sand transition-colors cursor-pointer shadow-xs"
+            >
+              Open Chat 💬
+            </button>
+            <button
+              onClick={clearLastJoinedMember}
+              className="p-1 rounded-full hover:bg-black/20 text-white cursor-pointer transition-colors"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 0. Leader Disconnect Alert Banner (PRD Section 6.1) */}
       {!isLeaderConnected && (
         <div className="bg-amber-500/10 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2 text-xs flex items-center justify-between">
@@ -68,16 +102,20 @@ export const TripHeader = () => {
             {/* Live Canvas Sync Drift & Connection Health (PRD Section 1.3 & 7.3.4) */}
             <span 
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                connectionQuality === 'fast'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : connectionQuality === 'good'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                isSocketConnected
+                  ? (connectionQuality === 'fast'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300')
+                  : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
               }`}
-              title={`Canvas sync drift roundtrip: ${syncDriftMs}ms (PRD Target < 100ms)`}
+              title={
+                isSocketConnected
+                  ? `Live Socket.IO Connected (port 3001) · Latency drift: ${syncDriftMs}ms (PRD Target < 100ms)`
+                  : 'Local Tab Sync Mode · Run "npm start" in /server for multi-browser & incognito live sync'
+              }
             >
-              <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-              <span>{syncDriftMs}ms · Sync Drift &lt; 100ms</span>
+              <Radio className={`w-3.5 h-3.5 ${isSocketConnected ? 'text-emerald-500 animate-pulse' : 'text-slate-400'}`} />
+              <span>{isSocketConnected ? `Live Sync (${syncDriftMs}ms)` : 'Local Tab Sync'}</span>
             </span>
 
             {trip.isRoomLocked && (
@@ -114,9 +152,13 @@ export const TripHeader = () => {
             >
               <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-teal shrink-0" />
               <span>Group Chat</span>
-              {trip.chat && trip.chat.length > 0 && (
+              {unreadChatCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-orange text-white animate-pulse">
+                  {unreadChatCount} new
+                </span>
+              ) : trip.chat && trip.chat.length > 0 ? (
                 <span className="w-2 h-2 rounded-full bg-brand-orange" />
-              )}
+              ) : null}
             </button>
 
             {/* Invite Button */}
@@ -170,7 +212,7 @@ export const TripHeader = () => {
 
               <div className="flex items-center -space-x-2.5">
                 {(trip.members || []).map((member) => {
-                  const isOnline = activeCollaborators.some(c => c.id === member.id) || member.id === currentUser?.id;
+                  const isOnline = activeCollaborators.some(c => c.id === member.id || (c.name && c.name === member.name)) || member.id === activeUser?.id || member.name === activeUser?.name || member.id === currentUser?.id;
                   return (
                     <div key={member.id} className="relative group">
                       <img

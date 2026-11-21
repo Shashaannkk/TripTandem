@@ -7,10 +7,12 @@ import { CollaborationBanner } from '../components/home/CollaborationBanner';
 import { VenueDetailModal } from '../components/venue/VenueDetailModal';
 import { PopularDestinationsCarousel } from '../components/home/PopularDestinationsCarousel';
 import { VENUES } from '../data/mockData';
+import { useTrip } from '../context/TripContext';
 import { ArrowRight, Sparkles, MapPin, Star, Flame, Compass } from 'lucide-react';
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const { trip, setIsCreateTripModalOpen, createNewBlankTrip } = useTrip();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedVenue, setSelectedVenue] = useState(null);
 
@@ -129,10 +131,10 @@ export const HomePage = () => {
             </div>
 
             <button
-              onClick={() => navigate('/workspace/trip-goa-2026')}
-              className="inline-flex items-center gap-2 bg-brand-navy hover:bg-brand-navy-light text-white px-5 py-2.5 rounded-full text-xs font-semibold shadow-sm transition-all"
+              onClick={() => trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-brand-navy hover:bg-brand-navy-light text-white px-5 py-2.5 rounded-full text-xs font-semibold shadow-sm transition-all cursor-pointer"
             >
-              <span>Open Goa Master Trip</span>
+              <span>{trip?.id ? 'Open Active Workspace' : 'Plan New Itinerary ✨'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -140,7 +142,10 @@ export const HomePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             <div 
-              onClick={() => navigate('/workspace/trip-goa-2026')}
+              onClick={() => {
+                createNewBlankTrip({ destination: 'Goa, India', title: 'Goa Collaborative Trip', daysCount: 3, budgetTotal: 30000 })
+                  .then(t => navigate(`/workspace/${t.id}`));
+              }}
               className="group cursor-pointer p-4 rounded-2xl bg-brand-sand/40 border border-brand-sand-border hover:border-brand-orange/40 transition-all space-y-3"
             >
               <div className="aspect-video rounded-xl overflow-hidden bg-brand-sand">
@@ -151,14 +156,17 @@ export const HomePage = () => {
                 />
               </div>
               <div>
-                <span className="text-[11px] font-bold text-brand-orange uppercase">3 Days · 4 Friends</span>
+                <span className="text-[11px] font-bold text-brand-orange uppercase">3 Days · Blank Canvas</span>
                 <h4 className="font-semibold text-sm text-brand-navy mt-0.5">Goa Coastal Rhythm & Sunsets</h4>
-                <p className="text-xs text-brand-navy/60 mt-1">Villa Solitude, Fort Aguada, and Gunpowder coastal dining under ₹10k/person.</p>
+                <p className="text-xs text-brand-navy/60 mt-1">Start fresh with your friends and craft your own coastal plan from scratch.</p>
               </div>
             </div>
 
             <div 
-              onClick={() => navigate('/workspace/trip-goa-2026')}
+              onClick={() => {
+                createNewBlankTrip({ destination: 'Manali, Himachal Pradesh', title: 'Manali Alpine Escape', daysCount: 4, budgetTotal: 32000 })
+                  .then(t => navigate(`/workspace/${t.id}`));
+              }}
               className="group cursor-pointer p-4 rounded-2xl bg-brand-sand/40 border border-brand-sand-border hover:border-brand-teal/40 transition-all space-y-3"
             >
               <div className="aspect-video rounded-xl overflow-hidden bg-brand-sand">
@@ -169,14 +177,17 @@ export const HomePage = () => {
                 />
               </div>
               <div>
-                <span className="text-[11px] font-bold text-brand-teal uppercase">4 Days · Mountain Lovers</span>
+                <span className="text-[11px] font-bold text-brand-teal uppercase">4 Days · Mountain Escape</span>
                 <h4 className="font-semibold text-sm text-brand-navy mt-0.5">Manali Alpine Pines & Solang High</h4>
-                <p className="text-xs text-brand-navy/60 mt-1">Cedar wood chalets, tandem paragliding, and cozy fireside trout dinners.</p>
+                <p className="text-xs text-brand-navy/60 mt-1">Build an alpine getaway with chalet stays, paragliding, and valley cafes.</p>
               </div>
             </div>
 
             <div 
-              onClick={() => navigate('/workspace/trip-goa-2026')}
+              onClick={() => {
+                createNewBlankTrip({ destination: 'Jaipur, Rajasthan', title: 'Pink City Royal Retreat', daysCount: 3, budgetTotal: 28000 })
+                  .then(t => navigate(`/workspace/${t.id}`));
+              }}
               className="group cursor-pointer p-4 rounded-2xl bg-brand-sand/40 border border-brand-sand-border hover:border-brand-yellow/60 transition-all space-y-3"
             >
               <div className="aspect-video rounded-xl overflow-hidden bg-brand-sand">

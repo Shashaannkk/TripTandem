@@ -60,7 +60,7 @@ export const AiConciergePage = () => {
   const handleApplyToTrip = (suggestion) => {
     acceptAiSuggestion(suggestion, suggestion.proposedDay || 1);
     showToast(`Added "${suggestion.title}" to Day ${suggestion.proposedDay || 1}!`, 'success');
-    navigate(`/workspace/${trip?.id || 'trip-goa-2026'}`);
+    navigate(trip?.id ? `/workspace/${trip.id}` : '/trips');
   };
 
   const handleLaunchGroupTrip = (plan) => {

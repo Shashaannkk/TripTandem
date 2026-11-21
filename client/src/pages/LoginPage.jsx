@@ -44,7 +44,7 @@ export const LoginPage = () => {
   const [forgotStatus, setForgotStatus] = useState({ loading: false, msg: '', error: '' });
 
   // From location state (e.g. redirected from protected page or signup)
-  const from = location.state?.from?.pathname || '/workspace/trip-goa-2026';
+  const from = location.state?.from?.pathname || '/trips';
 
   const validate = () => {
     const errs = {};

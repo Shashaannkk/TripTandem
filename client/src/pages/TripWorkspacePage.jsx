@@ -24,6 +24,16 @@ export const TripWorkspacePage = () => {
 
   useEffect(() => {
     if (tripId) {
+      // First check local storage in case offline or freshly created blank canvas
+      try {
+        const stored = localStorage.getItem('tt_all_trips');
+        if (stored) {
+          const list = JSON.parse(stored);
+          const found = list.find(t => t.id === tripId);
+          if (found) setTrip(found);
+        }
+      } catch (e) {}
+
       api.getTripById(tripId).then(fetched => {
         if (fetched && fetched.id === tripId) {
           setTrip(fetched);

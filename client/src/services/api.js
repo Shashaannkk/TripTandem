@@ -1,5 +1,5 @@
 // TripTandem Client API Service with resilient fallbacks & safe JSON parsing
-import { VENUES, INITIAL_TRIP, USERS } from '../data/mockData';
+import { VENUES, INITIAL_TRIP, USERS, createBlankTrip } from '../data/mockData';
 // Resolve the API Base URL:
 // In live production, if VITE_API_URL is configured (e.g. https://api.triptandem.com or /api),
 // normalize it cleanly. When unset or running locally, fallback to '/api' (Vite proxy).
@@ -415,12 +415,13 @@ export const api = {
     } catch (e) {
       console.warn('Create trip fallback', e);
     }
-    return {
-      ...INITIAL_TRIP,
-      id: `trip-${Date.now()}`,
-      title: tripData.title,
-      destination: tripData.destination,
-    };
+    return createBlankTrip(
+      tripData.destination || 'Goa, India',
+      tripData.title || '',
+      tripData.daysCount || 3,
+      tripData.budgetTotal || 30000,
+      tripData.createdBy || null
+    );
   },
 
   async getTripByInviteCode(inviteCode) {

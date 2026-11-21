@@ -11,6 +11,7 @@ export const JoinTripModal = () => {
   const effectiveUser = currentUser || activeUser;
 
   const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [customName, setCustomName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,7 +28,20 @@ export const JoinTripModal = () => {
 
     setIsJoining(true);
     try {
-      const targetTrip = await joinTripByCode(inviteCodeInput.trim(), 'Planner', effectiveUser);
+      const finalName = customName.trim() || effectiveUser?.name || 'Guest Traveler';
+      const joiningUser = {
+        ...effectiveUser,
+        id: effectiveUser?.id || `user-guest-${Date.now().toString(36)}`,
+        name: finalName,
+        email: effectiveUser?.email || `${finalName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
+        role: 'Planner',
+      };
+
+      try {
+        localStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
+      } catch (e) {}
+
+      const targetTrip = await joinTripByCode(inviteCodeInput.trim(), 'Planner', joiningUser);
       if (targetTrip) {
         setIsJoinModalOpen(false);
         setInviteCodeInput('');
@@ -117,6 +131,19 @@ export const JoinTripModal = () => {
                 {error}
               </p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200 mb-1.5">
+              Your Display Name (for Chat & Crew Roster)
+            </label>
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder={effectiveUser?.name || 'e.g. Maya, Rohan, Dev...'}
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white placeholder:text-brand-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-teal"
+            />
           </div>
 
           {/* Real Team Join Guidance */}

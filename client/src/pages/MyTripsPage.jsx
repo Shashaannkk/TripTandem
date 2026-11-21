@@ -77,7 +77,7 @@ const DEFAULT_TRIPS = [
 
 export const MyTripsPage = () => {
   const navigate = useNavigate();
-  const { trip, setTrip, setIsJoinModalOpen } = useTrip();
+  const { trip, setTrip, setIsJoinModalOpen, createNewBlankTrip } = useTrip();
   const { formatPrice, currentUser, showToast } = useAuth();
 
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'active' | 'upcoming' | 'completed'
@@ -91,7 +91,7 @@ export const MyTripsPage = () => {
   const [selectedTripForAnalytics, setSelectedTripForAnalytics] = useState(null);
   const [isAdminUploadOpen, setIsAdminUploadOpen] = useState(false);
 
-  // Load persistent trips list
+  // Load persistent trips list - starts with only user's active/created trips (no mock trips injected)
   const [tripsList, setTripsList] = useState(() => {
     try {
       const stored = localStorage.getItem('tt_all_trips');
@@ -100,7 +100,7 @@ export const MyTripsPage = () => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
-    return [trip, ...DEFAULT_TRIPS].filter(Boolean);
+    return trip ? [trip] : [];
   });
 
   // Sync active trip into the trips list
@@ -150,23 +150,16 @@ export const MyTripsPage = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    const created = await api.createTrip({
-      title: newTitle || `${newDestination} Rhythm Escape`,
+    const created = await createNewBlankTrip({
+      title: newTitle || `${newDestination.split(',')[0]} Collaborative Trip`,
       destination: newDestination,
-      daysCount: Number(newDays),
-      budgetTotal: Number(newBudget),
-      createdBy: currentUser,
+      daysCount: Number(newDays) || 3,
+      budgetTotal: Number(newBudget) || 30000,
     });
 
-    const updated = [created, ...tripsList];
-    setTripsList(updated);
-    try {
-      localStorage.setItem('tt_all_trips', JSON.stringify(updated));
-    } catch (err) {}
-
-    setTrip(created);
+    setTripsList(prev => [created, ...prev.filter(t => t.id !== created.id)]);
     setIsCreateModalOpen(false);
-    showToast(`Created trip: ${created.title}!`, 'success');
+    showToast(`Created blank trip: ${created.title}! ✨`, 'success');
     navigate(`/workspace/${created.id}`);
   };
 
@@ -252,8 +245,30 @@ export const MyTripsPage = () => {
           ))}
         </div>
 
-        {/* Trips Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Trips Grid or Empty State */}
+        {displayedTrips.length === 0 ? (
+          <div className="bg-white dark:bg-[#111C2E] rounded-3xl p-12 text-center border border-dashed border-brand-sand-border dark:border-[#1E2D42] space-y-4 max-w-lg mx-auto shadow-subtle animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-brand-orange-light dark:bg-orange-950/40 text-brand-orange flex items-center justify-center mx-auto">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-lg text-brand-navy dark:text-white">
+                No Trips in this View
+              </h3>
+              <p className="text-xs text-brand-navy/60 dark:text-slate-400">
+                Your workspace is a clean slate. Create a blank trip canvas to start planning from scratch with your crew!
+              </p>
+            </div>
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-card transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Trip</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {displayedTrips.map((item) => {
             const isActive = item.id === trip?.id;
             const targetBudget = item.budget?.totalTarget || 30000;
@@ -384,6 +399,7 @@ export const MyTripsPage = () => {
             );
           })}
         </div>
+        )}
 
       </div>
 

@@ -27,12 +27,13 @@ import {
 import { ThemeToggle } from './ThemeToggle';
 import { GoogleGeminiIcon } from '../home/GeminiAiBubble';
 import { JoinTripModal } from '../trip/JoinTripModal';
+import { CreateTripModal } from '../trip/CreateTripModal';
 
 export const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, currency, setCurrency, isAuthenticated, logout } = useAuth();
-  const { setIsAiConciergeOpen, setIsJoinModalOpen } = useTrip();
+  const { setIsAiConciergeOpen, setIsJoinModalOpen, setIsCreateTripModalOpen, trip } = useTrip();
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
@@ -301,26 +302,28 @@ export const Navbar = () => {
               </Link>
             )}
 
-            {/* Desktop Plan Itinerary Primary CTA - Crisp, Unclashed Single-Line Pill */}
-            <Link
-              to="/workspace/trip-goa-2026"
-              className="inline-flex items-center gap-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white px-3.5 xl:px-4 py-2 rounded-full text-xs xl:text-sm font-semibold shadow-card hover:shadow-card-hover transition-all transform active:scale-95 shrink-0 whitespace-nowrap"
+            {/* Desktop Plan Itinerary Primary CTA - Opens Blank Canvas Trip Creator */}
+            <button
+              type="button"
+              onClick={() => setIsCreateTripModalOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white px-3.5 xl:px-4 py-2 rounded-full text-xs xl:text-sm font-semibold shadow-card hover:shadow-card-hover transition-all transform active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-4 h-4 shrink-0" />
               <span>Plan Itinerary ✨</span>
-            </Link>
+            </button>
           </div>
 
           {/* 4. Phone / Mobile Header Top Bar */}
           <div className="flex lg:hidden items-center gap-2">
             <ThemeToggle compact={true} />
-            <Link
-              to="/workspace/trip-goa-2026"
-              className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm whitespace-nowrap"
+            <button
+              type="button"
+              onClick={() => setIsCreateTripModalOpen(true)}
+              className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Plan</span>
-            </Link>
+            </button>
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-xl bg-white dark:bg-[#111C2E] border border-brand-sand-border dark:border-[#1E2D42] text-brand-navy dark:text-white shadow-subtle"
@@ -422,14 +425,17 @@ export const Navbar = () => {
 
             {/* Mobile Plan Itinerary Action */}
             <div className="pt-2">
-              <Link
-                to="/workspace/trip-goa-2026"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="w-full py-2.5 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-2 shadow-card"
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsCreateTripModalOpen(true);
+                }}
+                className="w-full py-2.5 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-2 shadow-card cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Plan New Itinerary ✨</span>
-              </Link>
+              </button>
             </div>
 
             {/* Currency Switcher Row for Mobile */}
@@ -601,6 +607,9 @@ export const Navbar = () => {
 
       {/* Global Join Trip with Invite Code Modal */}
       <JoinTripModal />
+
+      {/* Global Create New Blank Trip Modal */}
+      <CreateTripModal />
     </>
   );
 };

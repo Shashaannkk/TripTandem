@@ -22,7 +22,7 @@ import { validateBookingDates } from '../../utils/dateUtils';
 export const CinematicHero = () => {
   const navigate = useNavigate();
   const { formatPrice } = useAuth();
-  const { createTripFromBooking, setIsJoinModalOpen } = useTrip();
+  const { createTripFromBooking, setIsJoinModalOpen, setIsCreateTripModalOpen, trip } = useTrip();
   const videoRef = useRef(null);
 
   const [videoFailed, setVideoFailed] = useState(false);
@@ -293,10 +293,10 @@ export const CinematicHero = () => {
         {/* Secondary Action Shortcuts */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <button
-            onClick={() => navigate('/workspace/trip-goa-2026')}
+            onClick={() => trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true)}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-brand-orange to-amber-500 hover:from-brand-orange-hover hover:to-amber-600 text-white font-bold px-6 py-2.5 rounded-full text-xs transition-all shadow-card hover:shadow-card-hover group cursor-pointer"
           >
-            <span>🚀 Enter Live Goa Trip Workspace</span>
+            <span>🚀 Enter Collaborative Trip Workspace</span>
             <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
           </button>
 

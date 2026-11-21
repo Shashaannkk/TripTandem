@@ -266,7 +266,91 @@ export const FEATURED_DESTINATIONS = [
 
 export const VENUES = PLACES_CATALOG;
 
-export const INITIAL_TRIP = {
+/**
+ * Creates a clean, blank trip canvas with empty days and no pre-filled activities,
+ * letting the user build their collaborative itinerary from scratch.
+ */
+export const createBlankTrip = (
+  destination = 'Goa, India',
+  title = '',
+  daysCount = 3,
+  budgetTotal = 30000,
+  user = null
+) => {
+  const creator = user || {
+    id: 'user-lead-1',
+    name: 'Trip Lead',
+    email: 'lead@triptandem.travel',
+    role: 'Leader',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    color: '#FF6B45',
+    status: 'online',
+  };
+
+  const cleanDest = destination || 'Goa, India';
+  const cleanTitle = title || `${cleanDest.split(',')[0]} Collaborative Trip`;
+  const count = Number(daysCount) || 3;
+  const budget = Number(budgetTotal) || 30000;
+  const tripId = `trip-${Date.now().toString(36)}`;
+  const destTag = (cleanDest.split(',')[0] || 'TRIP').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'TAN';
+  const inviteCode = `TANDEM-${destTag}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+  const today = new Date();
+  const startStr = today.toISOString().split('T')[0];
+  const endDate = new Date(today.getTime() + 86400000 * (count - 1));
+  const endStr = endDate.toISOString().split('T')[0];
+
+  return {
+    id: tripId,
+    title: cleanTitle,
+    destination: cleanDest,
+    coverImage: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200&auto=format&fit=crop&q=80',
+    startDate: startStr,
+    endDate: endStr,
+    daysCount: count,
+    budget: {
+      totalTarget: budget,
+      currency: 'INR',
+      splitMode: 'equal',
+      categories: {
+        accommodation: Math.round(budget * 0.45),
+        food: Math.round(budget * 0.25),
+        transport: Math.round(budget * 0.15),
+        activities: Math.round(budget * 0.10),
+        other: Math.round(budget * 0.05),
+      },
+      expenses: [],
+    },
+    members: [{ ...creator, role: 'Leader' }],
+    inviteCode,
+    activeDayIndex: 0,
+    days: Array.from({ length: count }, (_, i) => ({
+      dayNumber: i + 1,
+      dateFormatted: `Day ${i + 1}`,
+      theme: i === 0 ? 'Arrival & Setup' : i === 1 ? 'Explore & Discover' : 'Leisure & Wrap-up',
+      items: [], // Clean blank day canvas: user crafts their own tasks
+    })),
+    chat: [
+      {
+        id: `msg-sys-${Date.now()}`,
+        tripId,
+        senderId: 'system',
+        senderName: 'Trip Concierge',
+        senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        text: `Welcome to "${cleanTitle}"! Your itinerary is blank and ready. Add activities, invite friends, and collaborate in real-time! ✨`,
+        timestamp: 'Just now',
+        isSystem: true,
+      },
+    ],
+  };
+};
+
+export const BLANK_TRIP_TEMPLATE = createBlankTrip('Goa, India', 'My Collaborative Trip', 3, 30000);
+
+// Default starting trip is completely blank so user builds from scratch
+export const INITIAL_TRIP = BLANK_TRIP_TEMPLATE;
+
+export const DEMO_GOA_TRIP = {
   id: 'trip-goa-2026',
   title: 'Goa Coastal Rhythm & Sunsets',
   destination: 'Goa, India',

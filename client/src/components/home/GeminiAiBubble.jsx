@@ -382,7 +382,7 @@ export const GeminiAiBubble = ({ destination = '' }) => {
                                 acceptAiSuggestion(sug, sug.proposedDay || 1);
                                 showToast(`Added "${sug.title}" to itinerary!`, 'success');
                                 setIsOpen(false);
-                                navigate(`/workspace/${trip?.id || 'trip-goa-2026'}`);
+                                navigate(trip?.id ? `/workspace/${trip.id}` : '/trips');
                               }}
                               className="w-full py-1.5 rounded-lg bg-brand-navy dark:bg-white text-white dark:text-brand-navy text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-brand-orange dark:hover:bg-brand-orange dark:hover:text-white transition-colors"
                             >

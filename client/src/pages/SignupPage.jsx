@@ -207,7 +207,7 @@ export const SignupPage = () => {
 
       setIsSuccess(true);
       setTimeout(() => {
-        navigate('/workspace/trip-goa-2026', { replace: true });
+        navigate('/trips', { replace: true });
       }, 700);
     } catch (err) {
       setFormError(err.message || 'Account registration failed. Please try again.');

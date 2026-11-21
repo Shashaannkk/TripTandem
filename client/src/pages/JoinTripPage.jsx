@@ -15,6 +15,7 @@ export const JoinTripPage = () => {
 
   const [code, setCode] = useState(paramCode || 'TANDEM-GOA-77');
   const [selectedRole, setSelectedRole] = useState('Planner'); // 'Planner' | 'Viewer' (PRD Section 5.1/5.2)
+  const [customName, setCustomName] = useState('');
   const [previewTrip, setPreviewTrip] = useState(null);
   const [isJoining, setIsJoining] = useState(false);
 
@@ -32,7 +33,19 @@ export const JoinTripPage = () => {
   const handleJoinTrip = async () => {
     setIsJoining(true);
     try {
-      const joinedTrip = await joinTripByCode(code, selectedRole, effectiveUser);
+      const finalName = customName.trim() || effectiveUser?.name || 'Guest Traveler';
+      const joiningUser = {
+        ...effectiveUser,
+        id: effectiveUser?.id || `user-guest-${Date.now().toString(36)}`,
+        name: finalName,
+        email: effectiveUser?.email || `${finalName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
+        role: selectedRole || 'Planner',
+      };
+      try {
+        localStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
+      } catch (e) {}
+
+      const joinedTrip = await joinTripByCode(code, selectedRole, joiningUser);
       if (joinedTrip) {
         navigate(`/workspace/${joinedTrip.id}`);
       }
@@ -153,6 +166,20 @@ export const JoinTripPage = () => {
                 </p>
               </button>
             </div>
+          </div>
+
+          {/* Display Name Input */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200">
+              Your Display Name (for Crew Roster & Chat)
+            </label>
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder={effectiveUser?.name || 'e.g. Maya, Rohan, Dev...'}
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white placeholder:text-brand-navy/40 focus:outline-none focus:ring-2 focus:ring-brand-teal"
+            />
           </div>
 
           {/* Current User Badge */}

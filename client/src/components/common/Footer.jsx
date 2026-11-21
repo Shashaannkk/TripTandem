@@ -41,7 +41,7 @@ export const Footer = () => {
               TripTandem Rhythm
             </h4>
             <ul className="space-y-2.5 text-sm text-brand-navy/70">
-              <li><Link to="/workspace/trip-goa-2026" className="hover:text-brand-orange transition-colors">Collaborative Workspace</Link></li>
+              <li><Link to="/trips" className="hover:text-brand-orange transition-colors">Collaborative Workspace</Link></li>
               <li><Link to="/ai-concierge" className="hover:text-brand-orange transition-colors">AI Concierge Planning</Link></li>
               <li><Link to="/login" className="hover:text-brand-orange transition-colors">Log In to Account</Link></li>
               <li><Link to="/signup" className="hover:text-brand-orange transition-colors">Create Free Account</Link></li>

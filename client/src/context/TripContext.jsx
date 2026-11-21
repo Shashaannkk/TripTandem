@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import confetti from 'canvas-confetti';
-import { INITIAL_TRIP } from '../data/mockData';
+import { INITIAL_TRIP, createBlankTrip } from '../data/mockData';
 import { useAuth } from './AuthContext';
 import { api } from '../services/api';
 import { BudgetEngine } from '../utils/budgetEngine';
@@ -57,7 +57,20 @@ export const TripProvider = ({ children }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isCreateTripModalOpen, setIsCreateTripModalOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [lastJoinedMember, setLastJoinedMember] = useState(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [socket, setSocket] = useState(null);
+
+  const clearLastJoinedMember = useCallback(() => setLastJoinedMember(null), []);
+
+  // Reset unread count whenever user opens group chat drawer
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadChatCount(0);
+    }
+  }, [isChatOpen]);
 
   // PRD Real-Time Metrics & Moderation States
   const [syncDriftMs, setSyncDriftMs] = useState(38);
@@ -89,6 +102,16 @@ export const TripProvider = ({ children }) => {
       auth: {
         token: token || undefined,
       },
+    });
+
+    newSocket.on('connect', () => {
+      setIsSocketConnected(true);
+    });
+    newSocket.on('disconnect', () => {
+      setIsSocketConnected(false);
+    });
+    newSocket.on('connect_error', () => {
+      setIsSocketConnected(false);
     });
 
     setSocket(newSocket);
@@ -138,7 +161,11 @@ export const TripProvider = ({ children }) => {
               return { ...prev, chat: [...chat, message] };
             });
 
-            if (message.senderId !== currentUser?.id) {
+            if (!isChatOpen) {
+              setUnreadChatCount(prev => prev + 1);
+            }
+
+            if (message.senderId !== activeUser?.id) {
               if (message.isSystem) {
                 showToast(`✨ ${message.text}`, 'info');
               } else {
@@ -158,15 +185,19 @@ export const TripProvider = ({ children }) => {
                 return { ...prev, members: [...(prev.members || []), newMember] };
               });
             }
-            if (newMember && newMember.id !== currentUser?.id) {
-              showToast(`🎉 ${newMember.name} joined the trip room as ${newMember.role || 'Planner'}!`, 'success');
-              try { confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
+            if (newMember) {
+              setActiveCollaborators(prev => [...prev.filter(c => c.id !== newMember.id), newMember]);
+              if (newMember.id !== activeUser?.id) {
+                setLastJoinedMember(newMember);
+                showToast(`🎉 ${newMember.name} joined the trip room as ${newMember.role || 'Planner'}!`, 'success');
+                try { confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
+              }
             }
           }
 
           if (type === 'ITINERARY_SYNC' && broadcastTrip) {
             setTrip(broadcastTrip);
-            if (updatedBy && updatedBy.id !== currentUser?.id) {
+            if (updatedBy && updatedBy.id !== activeUser?.id) {
               showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
             }
           }
@@ -179,7 +210,23 @@ export const TripProvider = ({ children }) => {
     return () => {
       if (channel) channel.close();
     };
-  }, [trip?.id, currentUser?.id]);
+  }, [trip?.id, activeUser?.id, isChatOpen]);
+
+  // Multi-tab storage event synchronization
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'tt_active_trip' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.id) {
+            setTrip(parsed);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Reflect logged-in user profile across trip members
   useEffect(() => {
@@ -302,7 +349,11 @@ export const TripProvider = ({ children }) => {
         };
       });
 
-      if (message.senderId !== currentUser?.id) {
+      if (!isChatOpen) {
+        setUnreadChatCount(prev => prev + 1);
+      }
+
+      if (message.senderId !== activeUser?.id) {
         if (message.isSystem) {
           showToast(`✨ ${message.text}`, 'info');
         } else {
@@ -380,11 +431,15 @@ export const TripProvider = ({ children }) => {
           };
         });
       }
-      if (newMember && newMember.id !== currentUser?.id) {
-        showToast(`🎉 ${newMember.name} joined the trip room as ${newMember.role || 'Planner'}!`, 'success');
-        try {
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-        } catch (e) {}
+      if (newMember) {
+        setActiveCollaborators(prev => [...prev.filter(c => c.id !== newMember.id), newMember]);
+        if (newMember.id !== activeUser?.id) {
+          setLastJoinedMember(newMember);
+          showToast(`🎉 ${newMember.name} joined the trip room as ${newMember.role || 'Planner'}!`, 'success');
+          try {
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+          } catch (e) {}
+        }
       }
     };
 
@@ -1067,7 +1122,16 @@ export const TripProvider = ({ children }) => {
     }
 
     setTrip(targetTrip);
-    localStorage.setItem('tt_active_trip', JSON.stringify(targetTrip));
+    try {
+      localStorage.setItem('tt_active_trip', JSON.stringify(targetTrip));
+      const allStored = localStorage.getItem('tt_all_trips');
+      const parsedAll = allStored ? JSON.parse(allStored) : [];
+      const updatedAll = [targetTrip, ...parsedAll.filter(t => t.id !== targetTrip.id)];
+      localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+    } catch (e) {}
+
+    setActiveCollaborators(prev => [...prev.filter(c => c.id !== newMemberObj.id), newMemberObj]);
+    setLastJoinedMember(newMemberObj);
 
     // Emit live socket events
     if (socket) {
@@ -1107,6 +1171,46 @@ export const TripProvider = ({ children }) => {
 
     showToast(`🎉 Joined "${targetTrip.title}" as ${memberName}!`, 'success');
     return targetTrip;
+  };
+
+  // Create a brand new blank trip canvas
+  const createNewBlankTrip = async ({ destination, title, daysCount = 3, budgetTotal = 30000 }) => {
+    let created = null;
+    try {
+      created = await api.createTrip({
+        destination,
+        title,
+        daysCount: Number(daysCount),
+        budgetTotal: Number(budgetTotal),
+        createdBy: activeUser,
+      });
+    } catch (e) {
+      console.warn('Backend create trip notice, creating local blank canvas:', e);
+    }
+
+    if (!created) {
+      created = createBlankTrip(destination, title, daysCount, budgetTotal, activeUser);
+    }
+
+    setTrip(created);
+    setActiveDayIndex(0);
+
+    try {
+      localStorage.setItem('tt_active_trip', JSON.stringify(created));
+      const allStored = localStorage.getItem('tt_all_trips');
+      const parsedAll = allStored ? JSON.parse(allStored) : [];
+      const updatedAll = [created, ...parsedAll.filter(t => t.id !== created.id)];
+      localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+    } catch (e) {}
+
+    // Broadcast cross-tab
+    broadcastSync({
+      type: 'TRIP_CREATED',
+      tripId: created.id,
+      trip: created,
+    });
+
+    return created;
   };
 
   // Trip Leader Moderation: Update member role (Planner vs Viewer)
@@ -1537,6 +1641,14 @@ export const TripProvider = ({ children }) => {
         setIsInviteModalOpen,
         isJoinModalOpen,
         setIsJoinModalOpen,
+        isCreateTripModalOpen,
+        setIsCreateTripModalOpen,
+        createNewBlankTrip,
+        isSocketConnected,
+        unreadChatCount,
+        setUnreadChatCount,
+        lastJoinedMember,
+        clearLastJoinedMember,
         joinTripByCode,
         castVote,
         addActivity,

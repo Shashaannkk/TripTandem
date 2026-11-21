@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Plus, 
   Sparkles, 
@@ -19,7 +20,7 @@ import { TransportTransitionCard } from './TransportTransitionCard';
 import { GroupRecommendationsRail } from './GroupRecommendationsRail';
 
 export const ItineraryView = ({ onOpenAddModal }) => {
-  const { trip, activeDayIndex, reorderActivity, moveActivityToDay } = useTrip();
+  const { trip, activeDayIndex, reorderActivity, moveActivityToDay, setIsAiConciergeOpen } = useTrip();
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'day' | 'night'
   const [draggedItemId, setDraggedItemId] = useState(null);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState(null);
@@ -195,7 +196,7 @@ export const ItineraryView = ({ onOpenAddModal }) => {
 
       {/* 3. Empty State or Chronological Task Progression with In-Between Transit */}
       {filteredItems.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-12 text-center border border-dashed border-brand-sand-border dark:border-slate-800 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 sm:p-12 text-center border border-dashed border-brand-sand-border dark:border-slate-800 space-y-4">
           <div className="w-16 h-16 rounded-full bg-brand-orange-light dark:bg-orange-950/40 text-brand-orange flex items-center justify-center mx-auto">
             <Compass className="w-8 h-8" />
           </div>
@@ -204,16 +205,32 @@ export const ItineraryView = ({ onOpenAddModal }) => {
               {filterMode === 'day' ? 'No Daytime Tasks Added Yet' : filterMode === 'night' ? 'No Night Tasks Added Yet' : `Day ${currentDay.dayNumber} is wide open`}
             </h3>
             <p className="text-xs sm:text-sm text-brand-navy/60 dark:text-slate-400 mt-1">
-              Add morning, afternoon, evening or night tasks. Between sequential stops, suggested transport modes (cabs, autos, scooters, bus) will automatically appear with 1-click shared bill splitting!
+              Start building your custom day itinerary! Add your favorite stays, dining spots, sunset walks, and adventures.
             </p>
           </div>
-          <button
-            onClick={() => onOpenAddModal && onOpenAddModal(currentDay.dayNumber)}
-            className="inline-flex items-center gap-2 bg-brand-navy dark:bg-slate-800 hover:bg-brand-navy-light text-white px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Task</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => onOpenAddModal && onOpenAddModal(currentDay.dayNumber)}
+              className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-card transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Activity</span>
+            </button>
+            <Link
+              to="/explore"
+              className="inline-flex items-center gap-2 bg-white dark:bg-slate-800 hover:bg-brand-sand dark:hover:bg-slate-700 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-700 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-subtle transition-all cursor-pointer"
+            >
+              <Compass className="w-4 h-4 text-brand-teal" />
+              <span>Explore Stays & Places</span>
+            </Link>
+            <button
+              onClick={() => setIsAiConciergeOpen(true)}
+              className="inline-flex items-center gap-2 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-purple-500" />
+              <span>Ask AI Concierge</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
