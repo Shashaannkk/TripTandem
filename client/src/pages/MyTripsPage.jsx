@@ -23,57 +23,7 @@ import { PersonalTravelProfileCard } from '../components/trip/PersonalTravelProf
 import { SessionAnalyticsModal } from '../components/trip/SessionAnalyticsModal';
 import { AdminDatasetUploadModal } from '../components/trip/AdminDatasetUploadModal';
 
-const DEFAULT_TRIPS = [
-  {
-    id: 'trip-manali-2026',
-    title: 'Manali Alpine Pines & Solang High',
-    destination: 'Manali, Himachal Pradesh',
-    inviteCode: 'TANDEM-MAN-42',
-    coverImage: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop&q=80',
-    startDate: '2026-12-20',
-    endDate: '2026-12-24',
-    daysCount: 4,
-    members: [
-      { name: 'Alex Morgan', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-      { name: 'Rohan Mehta', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-    ],
-    budget: { totalTarget: 32000, spent: 14500 },
-    status: 'Upcoming',
-  },
-  {
-    id: 'trip-jaipur-2026',
-    title: 'Pink City Royal Haveli Retreat',
-    destination: 'Jaipur, Rajasthan',
-    inviteCode: 'TANDEM-JAI-19',
-    coverImage: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop&q=80',
-    startDate: '2026-10-05',
-    endDate: '2026-10-08',
-    daysCount: 3,
-    members: [
-      { name: 'Priya Sharma', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' },
-      { name: 'Aisha Khan', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' },
-    ],
-    budget: { totalTarget: 28000, spent: 28000 },
-    status: 'Completed',
-  },
-  {
-    id: 'trip-kerala-2026',
-    title: 'Kerala Backwaters & Misty Tea Hills',
-    destination: 'Munnar & Alleppey, Kerala',
-    inviteCode: 'TANDEM-KER-88',
-    coverImage: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop&q=80',
-    startDate: '2026-11-12',
-    endDate: '2026-11-17',
-    daysCount: 5,
-    members: [
-      { name: 'Alex Morgan', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-      { name: 'Priya Sharma', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' },
-      { name: 'Rohan Mehta', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-    ],
-    budget: { totalTarget: 45000, spent: 18200 },
-    status: 'Upcoming',
-  }
-];
+const DEFAULT_TRIPS = [];
 
 export const MyTripsPage = () => {
   const navigate = useNavigate();

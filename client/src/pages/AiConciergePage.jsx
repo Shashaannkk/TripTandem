@@ -123,15 +123,6 @@ export const AiConciergePage = () => {
           avatar: currentUser.avatar,
           color: '#FF6B45',
           status: 'online',
-        },
-        {
-          id: 'user-2',
-          name: 'Priya Sharma',
-          email: 'priya@triptandem.travel',
-          role: 'Treasurer',
-          avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-          color: '#2A9D8F',
-          status: 'online',
         }
       ],
       budget: {

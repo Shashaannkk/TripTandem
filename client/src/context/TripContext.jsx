@@ -47,7 +47,28 @@ export const TripProvider = ({ children }) => {
 
   const [trip, setTrip] = useState(() => {
     const saved = localStorage.getItem('tt_active_trip');
-    return saved ? JSON.parse(saved) : INITIAL_TRIP;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) {
+          if (parsed.chat) {
+            parsed.chat = parsed.chat.filter(
+              m => m.isSystem || (m.senderName && !['Alex Morgan', 'Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.senderName))
+            );
+          }
+          if (parsed.members) {
+            parsed.members = parsed.members.filter(
+              m => !['Alex Morgan', 'Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.name)
+            );
+            if (parsed.members.length === 0) {
+              parsed.members = [{ id: 'user-1', name: 'Trip Host', role: 'Leader', color: '#FF6B45', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' }];
+            }
+          }
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_TRIP;
   });
 
   const [activeDayIndex, setActiveDayIndex] = useState(0);
@@ -1064,22 +1085,52 @@ export const TripProvider = ({ children }) => {
       console.warn('Server trip join notification:', err);
     }
 
-    // 2. Local fallback if server unreachable
+    // 2. Local fallback if server unreachable or offline mode
     if (!targetTrip) {
-      targetTrip = { ...trip };
-      if (cleanCode === 'TANDEM-GOA-77' || cleanCode.includes('GOA') || (trip && trip.inviteCode && trip.inviteCode.toUpperCase() === cleanCode)) {
-        targetTrip = { ...trip, id: trip?.id || 'trip-goa-2026', inviteCode: 'TANDEM-GOA-77' };
-      } else {
-        const isManali = cleanCode.includes('MAN');
-        const isJaipur = cleanCode.includes('JAI');
-        const destName = isManali ? 'Manali, Himachal Pradesh' : isJaipur ? 'Jaipur, Rajasthan' : 'Goa, India';
-        targetTrip = {
-          ...trip,
-          id: `trip-${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-          inviteCode: cleanCode,
-          destination: destName,
-          title: `${destName.split(',')[0]} Collaborative Crew Escape`,
-        };
+      // Check stored trips in localStorage
+      try {
+        const storedAll = localStorage.getItem('tt_all_trips');
+        if (storedAll) {
+          const parsed = JSON.parse(storedAll);
+          const found = parsed.find(
+            t => (t.inviteCode && t.inviteCode.toUpperCase() === cleanCode) ||
+                 (t.id && t.id.toUpperCase() === cleanCode)
+          );
+          if (found) targetTrip = { ...found };
+        }
+      } catch (e) {}
+
+      // Check active trip in localStorage
+      if (!targetTrip) {
+        try {
+          const storedActive = localStorage.getItem('tt_active_trip');
+          if (storedActive) {
+            const parsedActive = JSON.parse(storedActive);
+            if (
+              (parsedActive.inviteCode && parsedActive.inviteCode.toUpperCase() === cleanCode) ||
+              (parsedActive.id && parsedActive.id.toUpperCase() === cleanCode)
+            ) {
+              targetTrip = { ...parsedActive };
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Check current in-memory trip state
+      if (!targetTrip && trip && (
+        (trip.inviteCode && trip.inviteCode.toUpperCase() === cleanCode) ||
+        (trip.id && trip.id.toUpperCase() === cleanCode)
+      )) {
+        targetTrip = { ...trip };
+      }
+
+      // If STILL not found anywhere, create a clean blank trip canvas specifically for this code
+      if (!targetTrip) {
+        targetTrip = createBlankTrip('Custom Destination', `Trip (${cleanCode})`, 3, 30000, joiningUser);
+        targetTrip.inviteCode = cleanCode;
+        targetTrip.id = `trip-${cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        targetTrip.members = [];
+        targetTrip.chat = [];
       }
     }
 
@@ -1093,8 +1144,16 @@ export const TripProvider = ({ children }) => {
       status: 'online',
     };
 
+    // Clean out any legacy mock chat messages or demo members that might linger
+    if (targetTrip.chat) {
+      targetTrip.chat = targetTrip.chat.filter(
+        m => m.isSystem || (m.senderName && !['Alex Morgan', 'Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.senderName))
+      );
+    }
+
     const alreadyMember = (targetTrip.members || []).some(
-      m => m.id === newMemberObj.id || (m.email && m.email === newMemberObj.email)
+      m => (m.id && newMemberObj.id && m.id === newMemberObj.id) ||
+           (m.email && newMemberObj.email && m.email.toLowerCase() === newMemberObj.email.toLowerCase())
     );
 
     if (!alreadyMember) {
@@ -1103,6 +1162,11 @@ export const TripProvider = ({ children }) => {
         members: [...(targetTrip.members || []), newMemberObj],
       };
     }
+
+    // Filter out demo members from members list
+    targetTrip.members = (targetTrip.members || []).filter(
+      m => m.id === newMemberObj.id || m.id === 'user-1' || !['Alex Morgan', 'Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.name)
+    );
 
     // Create system join message and push to chat
     const joinMsg = {

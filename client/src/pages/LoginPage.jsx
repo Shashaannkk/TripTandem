@@ -345,7 +345,7 @@ export const LoginPage = () => {
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-brand-sand/80 dark:bg-slate-800 hover:bg-brand-sand border border-brand-sand-border dark:border-slate-700 text-brand-navy dark:text-slate-200 text-xs font-semibold hover:border-brand-teal transition-all active:scale-[0.99]"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-brand-teal" />
-                  <span>1-Click Demo Traveler Sign-In (Alex Morgan)</span>
+                  <span>1-Click Demo Traveler Sign-In</span>
                 </button>
               </div>
 

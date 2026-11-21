@@ -406,7 +406,7 @@ export const SignupPage = () => {
                         setName(e.target.value);
                         if (errors.name) setErrors(prev => ({ ...prev, name: null }));
                       }}
-                      placeholder="Alex Morgan"
+                      placeholder="Your Full Name"
                       className="w-full pl-10 pr-4 py-2 rounded-xl text-xs bg-brand-sand/50 dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-brand-navy dark:text-slate-100 focus:outline-none focus:border-brand-teal"
                     />
                   </div>

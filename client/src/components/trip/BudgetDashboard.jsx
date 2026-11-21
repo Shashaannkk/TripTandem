@@ -46,7 +46,7 @@ export const BudgetDashboard = () => {
   const [expenseTitle, setExpenseTitle] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('food');
-  const [expensePaidBy, setExpensePaidBy] = useState(currentUser?.name || 'Alex Morgan');
+  const [expensePaidBy, setExpensePaidBy] = useState(currentUser?.name || trip?.members?.[0]?.name || 'Traveler');
   const [expenseType, setExpenseType] = useState('actual');
   const [expenseReceipt, setExpenseReceipt] = useState(null);
   const [expenseSplitMode, setExpenseSplitMode] = useState('equal'); // 'equal' | 'weighted'

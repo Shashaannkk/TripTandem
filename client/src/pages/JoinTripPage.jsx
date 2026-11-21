@@ -3,17 +3,16 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Users, Calendar, MapPin, Sparkles, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useTrip } from '../context/TripContext';
 import { useAuth } from '../context/AuthContext';
-
 import { api } from '../services/api';
 
 export const JoinTripPage = () => {
   const { inviteCode: paramCode } = useParams();
   const navigate = useNavigate();
   const { trip: activeTrip, joinTripByCode, activeUser } = useTrip();
-  const { currentUser } = useAuth();
+  const { currentUser, showToast } = useAuth();
   const effectiveUser = currentUser || activeUser;
 
-  const [code, setCode] = useState(paramCode || 'TANDEM-GOA-77');
+  const [code, setCode] = useState(paramCode ? paramCode.toUpperCase() : '');
   const [selectedRole, setSelectedRole] = useState('Planner'); // 'Planner' | 'Viewer' (PRD Section 5.1/5.2)
   const [customName, setCustomName] = useState('');
   const [previewTrip, setPreviewTrip] = useState(null);
@@ -22,15 +21,65 @@ export const JoinTripPage = () => {
   useEffect(() => {
     if (paramCode) {
       setCode(paramCode.toUpperCase());
-      api.getTripByInviteCode(paramCode).then(data => {
-        if (data) setPreviewTrip(data);
-      });
     }
   }, [paramCode]);
 
-  const displayedTrip = previewTrip || activeTrip;
+  useEffect(() => {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode) {
+      setPreviewTrip(null);
+      return;
+    }
+
+    let active = true;
+    api.getTripByInviteCode(cleanCode).then(data => {
+      if (!active) return;
+      if (data) {
+        setPreviewTrip(data);
+      } else {
+        try {
+          const stored = localStorage.getItem('tt_all_trips');
+          if (stored) {
+            const list = JSON.parse(stored);
+            const found = list.find(
+              t => (t.inviteCode && t.inviteCode.toUpperCase() === cleanCode) || 
+                   (t.id && t.id.toUpperCase() === cleanCode)
+            );
+            if (found) {
+              setPreviewTrip(found);
+              return;
+            }
+          }
+          const activeTripStored = localStorage.getItem('tt_active_trip');
+          if (activeTripStored) {
+            const parsed = JSON.parse(activeTripStored);
+            if (
+              (parsed.inviteCode && parsed.inviteCode.toUpperCase() === cleanCode) || 
+              (parsed.id && parsed.id.toUpperCase() === cleanCode)
+            ) {
+              setPreviewTrip(parsed);
+              return;
+            }
+          }
+        } catch (e) {}
+        setPreviewTrip(null);
+      }
+    });
+
+    return () => { active = false; };
+  }, [code]);
+
+  const displayedTrip = previewTrip || (code && (
+    (activeTrip?.inviteCode && activeTrip.inviteCode.toUpperCase() === code.trim().toUpperCase()) ||
+    (activeTrip?.id && activeTrip.id.toUpperCase() === code.trim().toUpperCase())
+  ) ? activeTrip : null);
 
   const handleJoinTrip = async () => {
+    if (!code || !code.trim()) {
+      showToast('Please enter an invite code to join a trip', 'error');
+      return;
+    }
+
     setIsJoining(true);
     try {
       const finalName = customName.trim() || effectiveUser?.name || 'Guest Traveler';
@@ -45,7 +94,7 @@ export const JoinTripPage = () => {
         localStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
       } catch (e) {}
 
-      const joinedTrip = await joinTripByCode(code, selectedRole, joiningUser);
+      const joinedTrip = await joinTripByCode(code.trim(), selectedRole, joiningUser);
       if (joinedTrip) {
         navigate(`/workspace/${joinedTrip.id}`);
       }
@@ -66,18 +115,20 @@ export const JoinTripPage = () => {
             <span className="px-3 py-1 rounded-full bg-black/40 backdrop-blur-md text-xs font-bold uppercase tracking-wider">
               Group Trip Invitation 🎟️
             </span>
-            <span className="text-xs font-mono font-bold bg-white/25 px-2.5 py-1 rounded-xl">
-              Code: {code}
-            </span>
+            {code ? (
+              <span className="text-xs font-mono font-bold bg-white/25 px-2.5 py-1 rounded-xl">
+                Code: {code}
+              </span>
+            ) : null}
           </div>
 
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow-md">
-              {displayedTrip?.title || 'Goa Collaborative Coastal Escape'}
+              {displayedTrip?.title || (code ? `Trip Room (${code})` : 'Join Travel Group')}
             </h1>
             <p className="text-xs text-white/90 flex items-center gap-1.5 mt-1 drop-shadow-sm">
               <MapPin className="w-3.5 h-3.5" />
-              <span>{displayedTrip?.destination || 'Goa, India'}</span>
+              <span>{displayedTrip?.destination || 'Collaborative Travel Room'}</span>
             </p>
           </div>
         </div>
@@ -94,34 +145,58 @@ export const JoinTripPage = () => {
             </p>
           </div>
 
+          {/* Invite Code Input Field */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200">
+              Trip Invite Code
+            </label>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. TANDEM-7X4K"
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-bold tracking-wider text-brand-navy dark:text-white uppercase placeholder:text-brand-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+            />
+          </div>
+
           {/* Crew Members Preview */}
           <div className="p-4 rounded-2xl bg-brand-sand dark:bg-slate-800/60 border border-brand-sand-border/80 dark:border-slate-700 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-brand-navy dark:text-white flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-brand-teal" />
-                <span>Active Travel Crew ({(displayedTrip?.members || []).length} Members)</span>
+                <span>
+                  {displayedTrip 
+                    ? `Active Travel Crew (${(displayedTrip.members || []).length} Members)` 
+                    : 'Crew Members Roster'}
+                </span>
               </span>
               <span className="text-[11px] text-brand-teal font-semibold">Live Room</span>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
-              {(displayedTrip?.members || []).map((m) => (
-                <div key={m.id || m.name} className="flex items-center gap-2 pr-3 py-1 bg-white dark:bg-slate-900 rounded-full border border-brand-sand-border dark:border-slate-700 shrink-0">
-                  <img
-                    src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                    alt={m.name}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-                    }}
-                    className="w-6 h-6 rounded-full object-cover"
-                  />
-                  <span className="text-xs font-semibold text-brand-navy dark:text-slate-200">
-                    {(m.name || 'Member').split(' ')[0]} <span className="text-[10px] text-brand-teal font-normal">({m.role || 'Planner'})</span>
-                  </span>
-                </div>
-              ))}
-            </div>
+            {displayedTrip && (displayedTrip.members || []).length > 0 ? (
+              <div className="flex items-center gap-2 overflow-x-auto py-1">
+                {(displayedTrip.members || []).map((m) => (
+                  <div key={m.id || m.name} className="flex items-center gap-2 pr-3 py-1 bg-white dark:bg-slate-900 rounded-full border border-brand-sand-border dark:border-slate-700 shrink-0">
+                    <img
+                      src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                      alt={m.name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+                      }}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                    <span className="text-xs font-semibold text-brand-navy dark:text-slate-200">
+                      {(m.name || 'Member').split(' ')[0]} <span className="text-[10px] text-brand-teal font-normal">({m.role || 'Planner'})</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-brand-navy/60 dark:text-slate-400 py-1">
+                {code ? `Enter your display name below to join the crew for "${code}".` : 'Enter a trip invite code above to preview your travel crew.'}
+              </p>
+            )}
           </div>
 
           {/* Role Selection (PRD Section 5.1/5.2) */}
@@ -195,7 +270,7 @@ export const JoinTripPage = () => {
                 }}
                 className="w-6 h-6 rounded-full object-cover ring-1 ring-brand-teal"
               />
-              <span>{effectiveUser?.name || 'Traveler'}</span>
+              <span>{customName.trim() || effectiveUser?.name || 'Traveler'}</span>
             </div>
           </div>
 

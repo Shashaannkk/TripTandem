@@ -121,7 +121,7 @@ export const JoinTripModal = () => {
                   setInviteCodeInput(e.target.value.toUpperCase());
                   if (error) setError('');
                 }}
-                placeholder="e.g. TANDEM-GOA-77"
+                placeholder="e.g. TANDEM-7X4K"
                 className="w-full pl-3.5 pr-4 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-bold tracking-wider text-brand-navy dark:text-white placeholder:text-brand-navy/30 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange uppercase"
                 autoFocus
               />
