@@ -28,9 +28,11 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
     setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  const handleQuickAdd = (e) => {
+  const isInTrip = (trip?.days || []).some(d => (d.items || []).some(i => i.venueId === venue.id || i.title === venue.name));
+
+  const handleQuickAdd = (e, targetDay = 1) => {
     e.stopPropagation();
-    addActivity(1, 'afternoon', {
+    addActivity(targetDay, 'afternoon', {
       title: venue.name,
       venueId: venue.id,
       venueName: venue.name,
@@ -41,7 +43,7 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
       notes: `Quick added from Explore. Rated ${venue.rating} ★`,
     });
     setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 2000);
+    setTimeout(() => setIsAdded(false), 2500);
   };
 
   return (
@@ -185,17 +187,37 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
             )}
           </div>
 
-          <button
-            onClick={handleQuickAdd}
-            className={`p-2 rounded-full text-xs font-medium transition-all ${
-              isAdded
-                ? 'bg-brand-teal text-white'
-                : 'bg-brand-sand hover:bg-brand-orange hover:text-white text-brand-navy'
-            }`}
-            title="Quick add as draft to active trip"
-          >
-            {isAdded ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            {isInTrip ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>In Itinerary</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => handleQuickAdd(e, 1)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer ${
+                  isAdded
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-brand-sand hover:bg-brand-orange hover:text-white text-brand-navy'
+                }`}
+                title="Add this place to your active trip itinerary"
+              >
+                {isAdded ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Added!</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add to Trip</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
       </div>

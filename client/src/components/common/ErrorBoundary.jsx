@@ -18,7 +18,7 @@ export class ErrorBoundary extends React.Component {
 
   handleReset = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
-    window.location.href = '/explore';
+    window.location.reload();
   };
 
   handleGoHome = () => {
@@ -48,29 +48,30 @@ export class ErrorBoundary extends React.Component {
               <button
                 type="button"
                 onClick={this.handleReset}
-                className="flex-1 py-3 px-4 rounded-full bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold text-xs transition-all shadow-card flex items-center justify-center gap-2 active:scale-95"
+                className="flex-1 py-3 px-4 rounded-full bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold text-xs transition-all shadow-card flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Retry Explore</span>
+                <span>Reload Page</span>
               </button>
 
               <button
                 type="button"
                 onClick={this.handleGoHome}
-                className="flex-1 py-3 px-4 rounded-full bg-brand-sand hover:bg-brand-sand-muted text-brand-navy font-semibold text-xs border border-brand-sand-border transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 rounded-full bg-brand-sand hover:bg-brand-sand-muted text-brand-navy font-semibold text-xs border border-brand-sand-border transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Home className="w-3.5 h-3.5" />
                 <span>Home Page</span>
               </button>
             </div>
 
-            {process.env.NODE_ENV !== 'production' && this.state.error && (
-              <details className="text-left text-[11px] bg-brand-sand/60 p-3 rounded-2xl border border-brand-sand-border/80 text-brand-navy/60 overflow-x-auto">
-                <summary className="cursor-pointer font-bold text-brand-navy/80 mb-1">
+            {this.state.error && (
+              <details open className="text-left text-[11px] bg-brand-sand/60 p-3.5 rounded-2xl border border-brand-sand-border/80 text-brand-navy/80 overflow-x-auto">
+                <summary className="cursor-pointer font-bold text-brand-orange mb-1">
                   Technical Details
                 </summary>
-                <pre className="font-mono text-[10px] whitespace-pre-wrap">
+                <pre className="font-mono text-[10px] whitespace-pre-wrap text-rose-600">
                   {this.state.error.toString()}
+                  {this.state.errorInfo?.componentStack}
                 </pre>
               </details>
             )}

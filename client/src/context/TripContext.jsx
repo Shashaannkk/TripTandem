@@ -744,18 +744,38 @@ export const TripProvider = ({ children }) => {
     });
   };
 
-  const addActivity = (dayNumber, timeSlot, activityData) => {
+  const addActivity = (dayNumber = 1, timeSlot = 'afternoon', activityData = {}) => {
     setTrip(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
-      const day = next.days.find(d => d.dayNumber === dayNumber);
-      if (!day) return prev;
+      let targetTrip = prev;
+      if (!targetTrip) {
+        try {
+          const stored = localStorage.getItem('tt_active_trip');
+          if (stored) targetTrip = JSON.parse(stored);
+        } catch {}
+      }
+      if (!targetTrip) {
+        targetTrip = createBlankTrip('Goa, India', 'My Collaborative Trip', 3, 30000, activeUser);
+      }
+
+      const next = JSON.parse(JSON.stringify(targetTrip));
+      if (!Array.isArray(next.days) || next.days.length === 0) {
+        next.days = [{ dayNumber: 1, dateFormatted: 'Day 1', theme: 'Explore & Discover', items: [] }];
+      }
+
+      let day = next.days.find(d => d.dayNumber === dayNumber);
+      if (!day) {
+        day = next.days[0];
+      }
+      if (!Array.isArray(day.items)) day.items = [];
+
+      const currentUserId = currentUser?.id || activeUser?.id || 'user-1';
 
       const newItem = {
-        id: `item-${Date.now().toString(36)}`,
+        id: `item-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
         timeSlot: timeSlot || 'afternoon',
         startTime: activityData.startTime || '02:00 PM',
         duration: activityData.duration || '2h',
-        title: activityData.title || 'New Activity',
+        title: activityData.title || activityData.venueName || 'New Activity',
         venueId: activityData.venueId || null,
         venueName: activityData.venueName || activityData.title,
         category: activityData.category || 'experience',
@@ -764,37 +784,50 @@ export const TripProvider = ({ children }) => {
         location: activityData.location || next.destination,
         source: activityData.source || 'user',
         status: 'drafting',
-        votes: { up: [currentUser.id], down: [] },
+        votes: { up: [currentUserId], down: [] },
         notes: activityData.notes || '',
+        positionVersion: 1,
       };
 
       day.items.push(newItem);
 
-      // Rebalance category budget
-      if (newItem.costPerPerson > 0) {
-        const cat = newItem.category === 'stay' ? 'accommodation' : newItem.category === 'restaurant' ? 'food' : 'activities';
-        next.budget.categories[cat] = (next.budget.categories[cat] || 0) + (newItem.costPerPerson * (next.members.length || 1));
+      // Rebalance category budget safely
+      if (next.budget) {
+        if (!next.budget.categories) next.budget.categories = {};
+        if (newItem.costPerPerson > 0) {
+          const cat = newItem.category === 'stay' ? 'accommodation' : newItem.category === 'restaurant' ? 'food' : 'activities';
+          next.budget.categories[cat] = (next.budget.categories[cat] || 0) + (newItem.costPerPerson * ((next.members && next.members.length) || 1));
+        }
       }
+
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
 
       if (socket) {
         socket.emit('itinerary_change', {
           tripId: next.id,
           trip: next,
-          changeDescription: `Added "${newItem.title}" to Day ${dayNumber}`,
-          updatedBy: currentUser,
+          changeDescription: `Added "${newItem.title}" to Day ${day.dayNumber}`,
+          updatedBy: currentUser || activeUser,
         });
       }
 
-      showToast(`Added "${newItem.title}" to Day ${dayNumber} as Draft`, 'success');
+      showToast(`Added "${newItem.title}" to Day ${day.dayNumber} as Draft! ✨`, 'success');
       return next;
     });
   };
 
   const updateActivity = (itemId, updates) => {
     setTrip(prev => {
+      if (!prev || !prev.days) return prev;
       const next = JSON.parse(JSON.stringify(prev));
       for (const day of next.days) {
-        const item = day.items.find(i => i.id === itemId);
+        const item = (day.items || []).find(i => i.id === itemId);
         if (item) {
           Object.assign(item, updates);
           break;
@@ -806,7 +839,7 @@ export const TripProvider = ({ children }) => {
           tripId: next.id,
           trip: next,
           changeDescription: `Updated activity details`,
-          updatedBy: currentUser,
+          updatedBy: currentUser || activeUser,
         });
       }
       return next;
@@ -815,10 +848,11 @@ export const TripProvider = ({ children }) => {
 
   const removeActivity = (itemId) => {
     setTrip(prev => {
+      if (!prev || !prev.days) return prev;
       const next = JSON.parse(JSON.stringify(prev));
       let removedName = '';
       for (const day of next.days) {
-        const idx = day.items.findIndex(i => i.id === itemId);
+        const idx = (day.items || []).findIndex(i => i.id === itemId);
         if (idx !== -1) {
           removedName = day.items[idx].title;
           day.items.splice(idx, 1);

@@ -27,22 +27,31 @@ import {
   AlertCircle,
   ExternalLink,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-react';
+import { useTrip } from '../context/TripContext';
 
 export const ExplorePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { trip: activeTrip } = useTrip();
 
   // Parse query params
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialDestination = queryParams.get('destination') || '';
+  const tripId = queryParams.get('tripId') || '';
+  const tripTitleParam = queryParams.get('tripTitle') || '';
   const initialCategory = queryParams.get('category') || 'all';
   const initialType = queryParams.get('type') || 'all';
   const initialCheckIn = queryParams.get('checkIn') || '';
   const initialCheckOut = queryParams.get('checkOut') || '';
   const initialGuests = parseInt(queryParams.get('guests'), 10) || 2;
   const initialRooms = parseInt(queryParams.get('rooms'), 10) || 1;
+
+  const targetTripId = tripId || (activeTrip?.id ? activeTrip.id : null);
+  const targetTripTitle = tripTitleParam || activeTrip?.title || 'Your Trip';
+  const tripItemsCount = (activeTrip?.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
 
   const [searchQuery, setSearchQuery] = useState(initialDestination);
   const [checkIn, setCheckIn] = useState(initialCheckIn);
@@ -381,18 +390,32 @@ export const ExplorePage = () => {
       list = list.filter(v => Number(v.rating || 0) >= filters.minRating);
     }
 
-    // Dietary
+    // Dietary (Bulletproof Safe)
     if (filters.dietary && filters.dietary.length > 0) {
-      list = list.filter(v => 
-        v.dietary && filters.dietary.some(d => v.dietary.some(vd => (vd || '').toLowerCase().includes(d.toLowerCase())))
-      );
+      list = list.filter(v => {
+        const venueDiet = Array.isArray(v.dietary)
+          ? v.dietary
+          : Array.isArray(v.dietaryTags)
+          ? v.dietaryTags
+          : typeof v.dietary === 'string'
+          ? [v.dietary]
+          : [];
+        return filters.dietary.some(d => 
+          venueDiet.some(vd => (vd || '').toLowerCase().includes(d.toLowerCase()))
+        );
+      });
     }
 
-    // Amenities
+    // Amenities (Bulletproof Safe)
     if (filters.amenities && filters.amenities.length > 0) {
-      list = list.filter(v => 
-        v.amenities && filters.amenities.every(a => v.amenities.includes(a))
-      );
+      list = list.filter(v => {
+        const venueAmenities = Array.isArray(v.amenities)
+          ? v.amenities
+          : typeof v.amenities === 'string'
+          ? [v.amenities]
+          : [];
+        return filters.amenities.every(a => venueAmenities.includes(a));
+      });
     }
 
     // Sort (null-safe)
@@ -735,6 +758,35 @@ export const ExplorePage = () => {
           {/* Results Column */}
           <div className="lg:col-span-3 space-y-6">
             
+            {/* Dedicated Trip Selection Banner when planning a trip */}
+            {tripId && (
+              <div className="bg-gradient-to-r from-brand-navy via-[#182F52] to-brand-teal text-white p-5 sm:p-6 rounded-3xl shadow-floating border border-white/10 animate-fadeIn space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-orange/20 text-brand-orange border border-brand-orange/30 text-xs font-bold">
+                      <Sparkles className="w-3.5 h-3.5 text-brand-orange" />
+                      <span>Planning: {targetTripTitle}</span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold">
+                      All Available Places in {searchQuery || 'Your Destination'} ({filteredVenues.length} Available)
+                    </h2>
+                    <p className="text-xs text-white/80 max-w-xl leading-relaxed">
+                      Here are all the curated stays, cafes, adventures and attractions available in our catalog for {searchQuery || 'your destination'}. Click <strong>"+ Add to Trip"</strong> on any place to add it to your itinerary!
+                    </p>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/workspace/${targetTripId}`)}
+                    className="px-5 py-3 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center gap-2 shadow-card transition-all active:scale-95 shrink-0 cursor-pointer"
+                  >
+                    <span>Open Live Canvas ({tripItemsCount} added)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Results Counter & Search Summary */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-brand-navy/70">
               <div className="flex items-center gap-2">
@@ -866,6 +918,25 @@ export const ExplorePage = () => {
           venue={selectedVenue}
           onClose={() => setSelectedVenue(null)}
         />
+      )}
+
+      {/* Floating Bottom Bar when building a trip */}
+      {tripId && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-brand-navy/95 text-white backdrop-blur-md px-5 sm:px-6 py-3 rounded-full shadow-2xl border border-white/20 flex items-center gap-4 animate-fadeIn">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-bold text-brand-orange">🎒 {targetTripTitle}</span>
+            <span className="text-white/40">|</span>
+            <span className="text-white/90 font-medium">{tripItemsCount} place(s) in itinerary</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/workspace/${targetTripId}`)}
+            className="px-4 py-2 rounded-full bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Finish & Open Canvas</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Travel Data & Provider Hub Modal */}

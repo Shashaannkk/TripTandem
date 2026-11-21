@@ -217,11 +217,11 @@ export const ItineraryView = ({ onOpenAddModal }) => {
               <span>+ Add Activity</span>
             </button>
             <Link
-              to="/explore"
+              to={`/explore?destination=${encodeURIComponent((trip.destination || 'Manali').split(',')[0].trim())}&tripId=${trip.id}&tripTitle=${encodeURIComponent(trip.title || 'Trip')}`}
               className="inline-flex items-center gap-2 bg-white dark:bg-slate-800 hover:bg-brand-sand dark:hover:bg-slate-700 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-700 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold shadow-subtle transition-all cursor-pointer"
             >
               <Compass className="w-4 h-4 text-brand-teal" />
-              <span>Explore Stays & Places</span>
+              <span>Browse All {trip.destination ? trip.destination.split(',')[0] : 'Destination'} Places to Add →</span>
             </Link>
             <button
               onClick={() => setIsAiConciergeOpen(true)}

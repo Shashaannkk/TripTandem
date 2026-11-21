@@ -10,22 +10,28 @@ import {
   ArrowRight, 
   CheckCircle2, 
   Compass,
-  FileSpreadsheet
+  ChevronDown
 } from 'lucide-react';
 import { useTrip } from '../../context/TripContext';
 import { useAuth } from '../../context/AuthContext';
 import confetti from 'canvas-confetti';
 
-const POPULAR_DESTINATIONS = [
-  { name: 'Goa', state: 'India', tag: 'Beaches & Shacks' },
-  { name: 'Manali', state: 'Himachal', tag: 'Snow & Pines' },
-  { name: 'Jaipur', state: 'Rajasthan', tag: 'Havelis & Palaces' },
-  { name: 'Kerala', state: 'India', tag: 'Backwaters & Hills' },
-  { name: 'Udupi', state: 'Karnataka', tag: 'Coastal Temples' },
-  { name: 'Udaipur', state: 'Rajasthan', tag: 'Lakes & Heritage' },
+export const DESTINATION_OPTIONS = [
+  { value: 'Manali, Himachal Pradesh', city: 'Manali', state: 'Himachal Pradesh', tag: 'Snow Peaks, Treks & Pine Cafes' },
+  { value: 'Goa, India', city: 'Goa', state: 'Goa', tag: 'Beaches, Sunsets & Beach Shacks' },
+  { value: 'Udaipur, Rajasthan', city: 'Udaipur', state: 'Rajasthan', tag: 'Lakes, Palaces & Rooftop Dining' },
+  { value: 'Jaipur, Rajasthan', city: 'Jaipur', state: 'Rajasthan', tag: 'Pink City, Havelis & Forts' },
+  { value: 'Kerala, India', city: 'Kerala', state: 'Kerala', tag: 'Backwaters, Tea Hills & Munnar' },
+  { value: 'Udupi, Karnataka', city: 'Udupi', state: 'Karnataka', tag: 'Malpe Beach, Kaup Lighthouse & Temples' },
+  { value: 'Rishikesh, Uttarakhand', city: 'Rishikesh', state: 'Uttarakhand', tag: 'Ganga Aarti, River Rafting & Yoga' },
+  { value: 'Pondicherry, India', city: 'Pondicherry', state: 'Puducherry', tag: 'French Colony & Rock Beach' },
+  { value: 'Darjeeling, West Bengal', city: 'Darjeeling', state: 'West Bengal', tag: 'Tea Gardens & Kanchenjunga Sunrises' },
+  { value: 'Coorg, Karnataka', city: 'Coorg', state: 'Karnataka', tag: 'Coffee Plantations & Abbey Falls' },
+  { value: 'Gokarna, Karnataka', city: 'Gokarna', state: 'Karnataka', tag: 'Om Beach & Cliff Treks' },
+  { value: 'Ooty, Tamil Nadu', city: 'Ooty', state: 'Tamil Nadu', tag: 'Nilgiri Hills & Toy Train' },
+  { value: 'Leh Ladakh, India', city: 'Leh Ladakh', state: 'Ladakh', tag: 'Pangong Lake & Mountain Passes' },
+  { value: 'custom', city: '', state: '', tag: 'Custom / Other Destination' },
 ];
-
-const BUDGET_PRESETS = [15000, 30000, 50000, 75000];
 
 export const CreateTripModal = () => {
   const navigate = useNavigate();
@@ -37,41 +43,63 @@ export const CreateTripModal = () => {
   } = useTrip();
   const { showToast, formatPrice } = useAuth();
 
-  const [destination, setDestination] = useState('Goa, India');
-  const [title, setTitle] = useState('');
+  const [selectedDestOption, setSelectedDestOption] = useState('Manali, Himachal Pradesh');
+  const [customDestination, setCustomDestination] = useState('');
+  const [title, setTitle] = useState('Manali Mountain Escape & Pine Trails');
   const [daysCount, setDaysCount] = useState(3);
   const [budgetTotal, setBudgetTotal] = useState(30000);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isCreateTripModalOpen) return null;
 
-  const handleSelectDest = (destName, state) => {
-    const full = `${destName}, ${state}`;
-    setDestination(full);
-    if (!title || title.includes('Trip Itinerary') || title.includes('Escape')) {
-      setTitle(`${destName} Collaborative Trip`);
+  const getEffectiveDestination = () => {
+    if (selectedDestOption === 'custom') {
+      return customDestination.trim() || 'Custom Destination';
     }
+    return selectedDestOption;
+  };
+
+  const handleDropdownChange = (e) => {
+    const val = e.target.value;
+    setSelectedDestOption(val);
+    if (val !== 'custom') {
+      const opt = DESTINATION_OPTIONS.find(d => d.value === val);
+      if (opt && opt.city) {
+        setTitle(`${opt.city} Collaborative Trip`);
+      }
+    }
+  };
+
+  const handleChipSelect = (opt) => {
+    setSelectedDestOption(opt.value);
+    setTitle(`${opt.city} Collaborative Trip`);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!destination.trim()) {
+    const effectiveDest = getEffectiveDestination();
+    if (!effectiveDest) {
       showToast('Please specify a trip destination', 'warning');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const finalTitle = title.trim() || `${destination.split(',')[0]} Collaborative Trip`;
+      const cityName = selectedDestOption !== 'custom' 
+        ? DESTINATION_OPTIONS.find(d => d.value === selectedDestOption)?.city || effectiveDest.split(',')[0].trim()
+        : effectiveDest.split(',')[0].trim();
+
+      const finalTitle = title.trim() || `${cityName} Collaborative Trip`;
+
       const newTrip = await createNewBlankTrip({
-        destination: destination.trim(),
+        destination: effectiveDest,
         title: finalTitle,
         daysCount: Number(daysCount) || 3,
         budgetTotal: Number(budgetTotal) || 30000,
       });
 
       setIsCreateTripModalOpen(false);
-      showToast(`Created new blank trip: "${newTrip.title}"! 🚀`, 'success');
+      showToast(`Created new trip: "${newTrip.title}"! 🚀`, 'success');
 
       try {
         confetti({
@@ -81,7 +109,8 @@ export const CreateTripModal = () => {
         });
       } catch (err) {}
 
-      navigate(`/workspace/${newTrip.id}`);
+      // Navigate directly to the destination selection page where all things for that place are listed
+      navigate(`/explore?destination=${encodeURIComponent(cityName)}&tripId=${newTrip.id}&tripTitle=${encodeURIComponent(newTrip.title)}`);
     } catch (err) {
       console.error(err);
       showToast('Failed to create trip. Please try again.', 'error');
@@ -89,6 +118,10 @@ export const CreateTripModal = () => {
       setIsSubmitting(false);
     }
   };
+
+  const currentCityName = selectedDestOption !== 'custom'
+    ? DESTINATION_OPTIONS.find(d => d.value === selectedDestOption)?.city || 'Manali'
+    : 'Selected Destination';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy/60 backdrop-blur-sm animate-fadeIn">
@@ -102,16 +135,16 @@ export const CreateTripModal = () => {
             </div>
             <div>
               <h3 className="font-bold text-lg text-brand-navy dark:text-white">
-                Plan a New Trip (Blank Itinerary)
+                Start a New Trip
               </h3>
               <p className="text-xs text-brand-navy/60 dark:text-slate-400">
-                Start fresh and build your itinerary from scratch with friends
+                Choose destination, name your trip, and pick places to visit
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsCreateTripModalOpen(false)}
-            className="p-1 rounded-full text-brand-navy/40 hover:text-brand-navy hover:bg-brand-sand dark:text-slate-400 dark:hover:text-white transition-colors"
+            className="p-1.5 rounded-full text-brand-navy/40 hover:text-brand-navy hover:bg-brand-sand dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
             aria-label="Close Create Trip Modal"
           >
             <X className="w-5 h-5" />
@@ -121,65 +154,87 @@ export const CreateTripModal = () => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* Destination */}
+          {/* 1. Trip Name */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200">
-              Where are you traveling?
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-orange" />
-              <input
-                type="text"
-                value={destination}
-                onChange={(e) => {
-                  setDestination(e.target.value);
-                  if (!title || title.includes('Trip Itinerary') || title.includes('Collaborative Trip')) {
-                    setTitle(`${e.target.value.split(',')[0]} Collaborative Trip`);
-                  }
-                }}
-                placeholder="e.g. Goa, Manali, Jaipur, Udupi, Munnar..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-brand-sand/50 dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white placeholder:text-brand-navy/40 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-                required
-              />
-            </div>
-
-            {/* Quick Chips */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 mr-1">
-                Popular:
-              </span>
-              {POPULAR_DESTINATIONS.map(d => (
-                <button
-                  key={d.name}
-                  type="button"
-                  onClick={() => handleSelectDest(d.name, d.state)}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                    destination.toLowerCase().includes(d.name.toLowerCase())
-                      ? 'bg-brand-orange text-white border-brand-orange'
-                      : 'bg-white dark:bg-slate-800 text-brand-navy/70 dark:text-slate-300 border-brand-sand-border dark:border-slate-700 hover:border-brand-orange'
-                  }`}
-                >
-                  {d.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Trip Title */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200">
-              Trip Title
+              Trip Name / Title
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Goa Coastal Rhythm & Sunset Sessions"
+              placeholder="e.g. Manali Snow Expedition & Pine Trails"
               className="w-full px-4 py-2.5 rounded-2xl bg-brand-sand/50 dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white placeholder:text-brand-navy/40 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+              required
             />
           </div>
 
-          {/* Duration & Budget Row */}
+          {/* 2. Destination Dropdown */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200 flex items-center justify-between">
+              <span>Select Destination (Place)</span>
+              <span className="text-[10px] text-brand-teal font-bold uppercase tracking-wider">Dropdown</span>
+            </label>
+            
+            <div className="relative">
+              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-orange pointer-events-none" />
+              <select
+                value={selectedDestOption}
+                onChange={handleDropdownChange}
+                className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-brand-sand/50 dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none cursor-pointer"
+              >
+                {DESTINATION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-900 text-brand-navy dark:text-white py-1">
+                    {opt.value === 'custom' ? '✨ Custom / Other Destination...' : `${opt.city} (${opt.state}) — ${opt.tag}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/50 pointer-events-none" />
+            </div>
+
+            {/* Custom Destination input if selected */}
+            {selectedDestOption === 'custom' && (
+              <div className="pt-2 animate-fadeIn">
+                <input
+                  type="text"
+                  value={customDestination}
+                  onChange={(e) => {
+                    setCustomDestination(e.target.value);
+                    if (e.target.value.trim()) {
+                      setTitle(`${e.target.value.trim()} Trip`);
+                    }
+                  }}
+                  placeholder="Type any city or place (e.g. Kasol, Spiti, Pondicherry)..."
+                  className="w-full px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-brand-orange text-xs font-semibold text-brand-navy dark:text-white focus:outline-none"
+                  autoFocus
+                  required
+                />
+              </div>
+            )}
+
+            {/* Quick Popular Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+              <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 mr-1">
+                Quick Pick:
+              </span>
+              {DESTINATION_OPTIONS.slice(0, 5).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleChipSelect(opt)}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                    selectedDestOption === opt.value
+                      ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-brand-navy/70 dark:text-slate-300 border-brand-sand-border dark:border-slate-700 hover:border-brand-orange'
+                  }`}
+                >
+                  {opt.city}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Duration & Budget Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
             {/* Number of Days */}
@@ -193,7 +248,7 @@ export const CreateTripModal = () => {
                     key={d}
                     type="button"
                     onClick={() => setDaysCount(d)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       daysCount === d
                         ? 'bg-brand-navy text-white dark:bg-white dark:text-brand-navy border-brand-navy dark:border-white shadow-xs'
                         : 'bg-white dark:bg-slate-800 text-brand-navy/70 dark:text-slate-300 border-brand-sand-border dark:border-slate-700 hover:border-brand-teal'
@@ -227,11 +282,11 @@ export const CreateTripModal = () => {
 
           </div>
 
-          {/* PRD Blank Canvas Guarantee Notice */}
-          <div className="p-3 rounded-2xl bg-brand-sand/40 dark:bg-slate-800/40 border border-brand-sand-border dark:border-slate-700/60 text-xs text-brand-navy/70 dark:text-slate-300 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            <p>
-              Starts with a <strong>clean, empty itinerary</strong> (0 pre-filled mock activities). You and your crew have full freedom to add stays, vote on activities, and split costs.
+          {/* Explanation Box */}
+          <div className="p-3 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 text-xs text-teal-900 dark:text-teal-200 flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              Clicking below will create your trip and immediately open the <strong>{currentCityName} selection catalog</strong> showing all available stays, cafes, and activities to add to your plan.
             </p>
           </div>
 
@@ -241,8 +296,7 @@ export const CreateTripModal = () => {
             disabled={isSubmitting}
             className="w-full py-3.5 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white text-sm font-bold flex items-center justify-center gap-2 shadow-card hover:shadow-card-hover transition-all transform active:scale-95 cursor-pointer disabled:opacity-50"
           >
-            <Plus className="w-4 h-4" />
-            <span>{isSubmitting ? 'Creating Blank Trip...' : 'Create Blank Trip Itinerary ✨'}</span>
+            <span>{isSubmitting ? 'Creating Trip...' : `Next: Browse All Places for ${currentCityName} ➔`}</span>
           </button>
 
           {/* Quick link to currently active trip if one exists */}
@@ -254,7 +308,7 @@ export const CreateTripModal = () => {
                   setIsCreateTripModalOpen(false);
                   navigate(`/workspace/${activeTrip.id}`);
                 }}
-                className="text-xs font-semibold text-brand-navy/60 dark:text-slate-400 hover:text-brand-orange transition-colors"
+                className="text-xs font-semibold text-brand-navy/60 dark:text-slate-400 hover:text-brand-orange transition-colors cursor-pointer"
               >
                 Or continue editing: <strong>{activeTrip.title}</strong> →
               </button>
@@ -267,3 +321,5 @@ export const CreateTripModal = () => {
     </div>
   );
 };
+
+export default CreateTripModal;
