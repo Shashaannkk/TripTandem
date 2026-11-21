@@ -24,23 +24,63 @@ export const TripWorkspacePage = () => {
   const [targetDayForAdd, setTargetDayForAdd] = useState(1);
 
   useEffect(() => {
-    if (tripId) {
-      // First check local storage in case offline or freshly created blank canvas
-      try {
-        const stored = localStorage.getItem('tt_all_trips');
-        if (stored) {
-          const list = JSON.parse(stored);
-          const found = list.find(t => t.id === tripId);
-          if (found) setTrip(found);
-        }
-      } catch (e) {}
+    if (!tripId) return;
 
-      api.getTripById(tripId).then(fetched => {
-        if (fetched && fetched.id === tripId) {
-          setTrip(fetched);
-        }
-      });
+    // 1. If in-memory trip is already this trip with populated activities, preserve it!
+    if (trip && trip.id === tripId && trip.days?.some(d => (d.items || []).length > 0)) {
+      return;
     }
+
+    const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const targetNorm = norm(tripId);
+
+    // 2. Check localStorage
+    try {
+      const stored = localStorage.getItem('tt_all_trips');
+      if (stored) {
+        const list = JSON.parse(stored);
+        const found = list.find(t => norm(t.id) === targetNorm || norm(t.inviteCode) === targetNorm || (targetNorm.length >= 4 && (norm(t.id).includes(targetNorm) || norm(t.inviteCode).includes(targetNorm))));
+        if (found) {
+          setTrip(found);
+          return;
+        }
+      }
+      const activeStored = localStorage.getItem('tt_active_trip');
+      if (activeStored) {
+        const parsed = JSON.parse(activeStored);
+        if (norm(parsed.id) === targetNorm || norm(parsed.inviteCode) === targetNorm) {
+          setTrip(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // 3. Query other open tabs via BroadcastChannel
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('triptandem_live_sync');
+        bc.postMessage({ type: 'REQUEST_TRIP_STATE', tripId });
+        bc.onmessage = (e) => {
+          if (e.data?.type === 'PROVIDE_TRIP_STATE' && e.data.trip) {
+            const bTrip = e.data.trip;
+            if (norm(bTrip.id) === targetNorm || norm(bTrip.inviteCode) === targetNorm) {
+              setTrip(bTrip);
+              try { bc.close(); } catch (err) {}
+            }
+          }
+        };
+        setTimeout(() => {
+          try { bc.close(); } catch (err) {}
+        }, 1200);
+      } catch (e) {}
+    }
+
+    // 4. Check server API
+    api.getTripById(tripId).then(fetched => {
+      if (fetched && fetched.id === tripId) {
+        setTrip(fetched);
+      }
+    });
   }, [tripId, setTrip]);
 
   const handleOpenAddModal = (dayNumber) => {

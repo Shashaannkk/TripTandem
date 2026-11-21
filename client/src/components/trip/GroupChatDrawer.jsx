@@ -60,6 +60,7 @@ export const GroupChatDrawer = () => {
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingTimerRef = useRef(null);
 
   const EMOJI_OPTIONS = ['❤️', '😂', '👍', '🔥', '😮', '👏', '✈️', '🥳'];
 
@@ -127,12 +128,14 @@ export const GroupChatDrawer = () => {
     const textToSend = inputText.trim();
     if (!textToSend) return;
 
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    emitTyping(false);
+
     const isDirectAiQuery = isAiModeActive || /@(gemini|google|ai)/i.test(textToSend);
 
     // Send user message
     sendChatMessage(textToSend);
     setInputText('');
-    emitTyping(false);
 
     // If query was addressed to Google AI, trigger side-by-side response
     if (isDirectAiQuery) {
@@ -146,8 +149,18 @@ export const GroupChatDrawer = () => {
   };
 
   const handleInputChange = (e) => {
-    setInputText(e.target.value);
-    emitTyping(e.target.value.length > 0);
+    const val = e.target.value;
+    setInputText(val);
+    if (val.trim().length > 0) {
+      emitTyping(true);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        emitTyping(false);
+      }, 2500);
+    } else {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      emitTyping(false);
+    }
   };
 
   // Handle Receipt File Upload
@@ -552,14 +565,28 @@ export const GroupChatDrawer = () => {
           </div>
         )}
 
+        {/* Real-time Human Collaborator Typing Indicator Bubble */}
+        {typingUsers && typingUsers.length > 0 && (
+          <div className="flex items-center gap-2.5 p-2.5 px-4 rounded-2xl bg-brand-sand dark:bg-slate-800 border border-brand-sand-border dark:border-slate-700 text-xs text-brand-navy dark:text-slate-200 w-fit animate-pulse shadow-sm">
+            <div className="flex gap-1 items-center">
+              <span className="w-2 h-2 bg-brand-teal rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-2 h-2 bg-brand-teal rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-2 h-2 bg-brand-teal rounded-full animate-bounce" />
+            </div>
+            <span className="font-semibold text-brand-teal">
+              {typingUsers.map(u => (u.name || 'Traveler').split(' ')[0]).join(', ')} is typing...
+            </span>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Typing Indicator */}
-      {typingUsers.length > 0 && (
-        <div className="px-4 py-1.5 bg-brand-sand/50 dark:bg-slate-900 text-[11px] text-brand-teal font-medium flex items-center gap-1.5 border-t border-brand-sand-border/50 dark:border-slate-800">
+      {/* Typing Indicator Strip above input */}
+      {typingUsers && typingUsers.length > 0 && (
+        <div className="px-4 py-1.5 bg-brand-teal/10 dark:bg-slate-900 text-[11px] text-brand-teal font-medium flex items-center gap-1.5 border-t border-brand-sand-border/50 dark:border-slate-800 animate-fadeIn">
           <span className="w-2 h-2 rounded-full bg-brand-teal animate-bounce" />
-          <span>{typingUsers.map(u => u.name.split(' ')[0]).join(', ')} typing...</span>
+          <span>{typingUsers.map(u => (u.name || 'Traveler').split(' ')[0]).join(', ')} is typing a response...</span>
         </div>
       )}
 
@@ -762,6 +789,10 @@ export const GroupChatDrawer = () => {
             type="text"
             value={inputText}
             onChange={handleInputChange}
+            onBlur={() => {
+              if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+              emitTyping(false);
+            }}
             placeholder={isAiModeActive ? "Ask Google AI (e.g. Best dinner spot near Vagator?)..." : "Discuss plans, vote ideas, or type @Gemini..."}
             className="flex-1 bg-brand-sand dark:bg-slate-900 text-xs rounded-full px-4 py-2.5 text-brand-navy dark:text-slate-100 placeholder:text-brand-navy/40 dark:placeholder:text-slate-500 border border-brand-sand-border dark:border-slate-700 focus:outline-none focus:border-brand-orange"
           />

@@ -12,6 +12,7 @@ export const JoinTripModal = () => {
 
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [customName, setCustomName] = useState('');
+  const [selectedRole, setSelectedRole] = useState('Planner'); // 'Planner' | 'Viewer'
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,14 +35,14 @@ export const JoinTripModal = () => {
         id: effectiveUser?.id || `user-guest-${Date.now().toString(36)}`,
         name: finalName,
         email: effectiveUser?.email || `${finalName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
-        role: 'Planner',
+        role: selectedRole || 'Planner',
       };
 
       try {
         localStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
       } catch (e) {}
 
-      const targetTrip = await joinTripByCode(inviteCodeInput.trim(), 'Planner', joiningUser);
+      const targetTrip = await joinTripByCode(inviteCodeInput.trim(), selectedRole, joiningUser);
       if (targetTrip) {
         setIsJoinModalOpen(false);
         setInviteCodeInput('');
@@ -144,6 +145,49 @@ export const JoinTripModal = () => {
               placeholder={effectiveUser?.name || 'e.g. Maya, Rohan, Dev...'}
               className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-brand-sand-border dark:border-slate-700 text-sm font-semibold text-brand-navy dark:text-white placeholder:text-brand-navy/40 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-teal"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-brand-navy dark:text-slate-200 mb-1.5">
+              Select Your Role in Trip
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedRole('Planner')}
+                className={`p-2.5 rounded-2xl border text-left transition-all ${
+                  selectedRole === 'Planner'
+                    ? 'bg-brand-orange-light/50 border-brand-orange text-brand-navy dark:text-white shadow-subtle'
+                    : 'bg-white dark:bg-slate-800 border-brand-sand-border dark:border-slate-700 text-brand-navy/60 dark:text-slate-400'
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Planner ✍️</span>
+                  {selectedRole === 'Planner' && <CheckCircle2 className="w-3.5 h-3.5 text-brand-orange" />}
+                </div>
+                <p className="text-[10px] mt-0.5 text-brand-navy/70 dark:text-slate-300">
+                  Add places, edit & vote
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRole('Viewer')}
+                className={`p-2.5 rounded-2xl border text-left transition-all ${
+                  selectedRole === 'Viewer'
+                    ? 'bg-brand-teal-light/40 border-brand-teal text-brand-navy dark:text-white shadow-subtle'
+                    : 'bg-white dark:bg-slate-800 border-brand-sand-border dark:border-slate-700 text-brand-navy/60 dark:text-slate-400'
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>Viewer 👀</span>
+                  {selectedRole === 'Viewer' && <CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" />}
+                </div>
+                <p className="text-[10px] mt-0.5 text-brand-navy/70 dark:text-slate-300">
+                  Follow live & cast votes
+                </p>
+              </button>
+            </div>
           </div>
 
           {/* Real Team Join Guidance */}

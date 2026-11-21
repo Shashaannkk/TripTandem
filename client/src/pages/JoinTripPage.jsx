@@ -25,49 +25,77 @@ export const JoinTripPage = () => {
   }, [paramCode]);
 
   useEffect(() => {
-    const cleanCode = (code || '').trim().toUpperCase();
+    const cleanCode = (code || '').trim();
     if (!cleanCode) {
       setPreviewTrip(null);
       return;
     }
 
+    const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const targetNorm = norm(cleanCode);
+
     let active = true;
+
+    // 1. Check in-memory activeTrip
+    if (activeTrip && (norm(activeTrip.inviteCode) === targetNorm || norm(activeTrip.id) === targetNorm || (targetNorm.length >= 4 && norm(activeTrip.inviteCode).includes(targetNorm)))) {
+      setPreviewTrip(activeTrip);
+      return;
+    }
+
+    // 2. Check localStorage
+    try {
+      const stored = localStorage.getItem('tt_all_trips');
+      if (stored) {
+        const list = JSON.parse(stored);
+        const found = list.find(
+          t => norm(t.inviteCode) === targetNorm || norm(t.id) === targetNorm || (targetNorm.length >= 4 && (norm(t.inviteCode).includes(targetNorm) || targetNorm.includes(norm(t.inviteCode))))
+        );
+        if (found) {
+          setPreviewTrip(found);
+          return;
+        }
+      }
+      const activeTripStored = localStorage.getItem('tt_active_trip');
+      if (activeTripStored) {
+        const parsed = JSON.parse(activeTripStored);
+        if (norm(parsed.inviteCode) === targetNorm || norm(parsed.id) === targetNorm || (targetNorm.length >= 4 && norm(parsed.inviteCode).includes(targetNorm))) {
+          setPreviewTrip(parsed);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // 3. Ask other open tabs via BroadcastChannel
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('triptandem_live_sync');
+        bc.postMessage({ type: 'REQUEST_TRIP_STATE', inviteCode: cleanCode });
+        bc.onmessage = (e) => {
+          if (!active) return;
+          if (e.data?.type === 'PROVIDE_TRIP_STATE' && e.data.trip) {
+            const bTrip = e.data.trip;
+            if (norm(bTrip.inviteCode) === targetNorm || norm(bTrip.id) === targetNorm || (targetNorm.length >= 4 && norm(bTrip.inviteCode).includes(targetNorm))) {
+              setPreviewTrip(bTrip);
+              try { bc.close(); } catch (err) {}
+            }
+          }
+        };
+        setTimeout(() => {
+          try { bc.close(); } catch (err) {}
+        }, 1200);
+      } catch (e) {}
+    }
+
+    // 4. Check API
     api.getTripByInviteCode(cleanCode).then(data => {
       if (!active) return;
       if (data) {
         setPreviewTrip(data);
-      } else {
-        try {
-          const stored = localStorage.getItem('tt_all_trips');
-          if (stored) {
-            const list = JSON.parse(stored);
-            const found = list.find(
-              t => (t.inviteCode && t.inviteCode.toUpperCase() === cleanCode) || 
-                   (t.id && t.id.toUpperCase() === cleanCode)
-            );
-            if (found) {
-              setPreviewTrip(found);
-              return;
-            }
-          }
-          const activeTripStored = localStorage.getItem('tt_active_trip');
-          if (activeTripStored) {
-            const parsed = JSON.parse(activeTripStored);
-            if (
-              (parsed.inviteCode && parsed.inviteCode.toUpperCase() === cleanCode) || 
-              (parsed.id && parsed.id.toUpperCase() === cleanCode)
-            ) {
-              setPreviewTrip(parsed);
-              return;
-            }
-          }
-        } catch (e) {}
-        setPreviewTrip(null);
       }
     });
 
     return () => { active = false; };
-  }, [code]);
+  }, [code, activeTrip]);
 
   const displayedTrip = previewTrip || (code && (
     (activeTrip?.inviteCode && activeTrip.inviteCode.toUpperCase() === code.trim().toUpperCase()) ||

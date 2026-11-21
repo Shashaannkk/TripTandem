@@ -463,10 +463,11 @@ export function setupSocketIO(io) {
       io.to(`trip_${tripId}`).emit('new_message', { message: safeMessage });
     });
 
-    socket.on('typing_status', ({ tripId, isTyping }) => {
+    socket.on('typing_status', ({ tripId, isTyping, user }) => {
+      const sender = socket.user || socket.userData || user || { id: socket.id, name: 'Traveler' };
       socket.to(`trip_${tripId}`).emit('user_typing', {
-        user: socket.user || socket.userData,
-        isTyping,
+        user: sender,
+        isTyping: Boolean(isTyping),
       });
     });
 
