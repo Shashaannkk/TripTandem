@@ -362,12 +362,20 @@ export class RecommendationService {
       const heldOutVenues = userTestGroundTruth.get(userId);
       const userTrainInteractions = trainSet.filter(t => String(t.userId) === userId);
       const userDest = userTrainInteractions[0]?.destination || 'Goa';
+      const userPrefCategories = [...new Set(userTrainInteractions.map(t => t.category).filter(Boolean))];
 
       const tripContext = {
         id: `eval-trip-${userId}`,
         destination: userDest,
-        members: [{ id: userId, name: `User ${userId}` }],
-        days: [{ dayNumber: 1, items: [] }],
+        members: [{ 
+          id: userId, 
+          name: `User ${userId}`,
+          preferredCategories: userPrefCategories,
+        }],
+        days: [{ 
+          dayNumber: 1, 
+          items: userTrainInteractions.map(t => ({ venueId: t.venueId, category: t.category })) 
+        }],
       };
 
       const recommendations = await RecommendationService.getRecommendationsForGroup(tripContext, { limit: k });
