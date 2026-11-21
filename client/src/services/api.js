@@ -902,6 +902,31 @@ export const api = {
     }
   },
 
+  // Evaluate Recommender Precision@5 on Interaction Telemetry Dataset (PRD REC-06)
+  async evaluateRecommenderDataset(dataset, options = {}) {
+    const res = await authFetch(`${BASE_URL}/venues/recommender/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataset, options }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(data?.error || 'Recommender evaluation failed');
+    }
+    return data?.data;
+  },
+
+  // Get current recommendation benchmark audit status
+  async getRecommenderBenchmark() {
+    try {
+      const res = await authFetch(`${BASE_URL}/venues/recommender/benchmark`);
+      const data = await safeJson(res);
+      return data?.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
   // Real Event-Driven Session Analytics (PRD Feature 4)
   async getAnalytics(tripId) {
     try {

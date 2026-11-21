@@ -9,6 +9,8 @@
     "dev": "node dev.js",
     "server": "npm --prefix server run dev",
     "client": "npm --prefix client run dev",
+    "test:docker": "node scripts/verify_docker_prerequisites.js",
+    "test:precision": "node server/test_recommendation_eval.js",
     "install:all": "npm --prefix server install && npm --prefix client install"
   }
 }

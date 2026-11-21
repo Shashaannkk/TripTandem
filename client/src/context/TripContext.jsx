@@ -99,6 +99,9 @@ export const TripProvider = ({ children }) => {
   const [isLeaderConnected, setIsLeaderConnected] = useState(true);
   const [leaderStatusMessage, setLeaderStatusMessage] = useState('');
   const [activeDuelVote, setActiveDuelVote] = useState(null);
+  const [remoteCursors, setRemoteCursors] = useState({});
+  const [focusedCards, setFocusedCards] = useState({});
+  const lastCursorEmitRef = useRef(0);
 
   // Initialize Socket.IO connection (Live production & local aware)
   useEffect(() => {
@@ -192,6 +195,29 @@ export const TripProvider = ({ children }) => {
               } else {
                 showToast(`💬 ${message.senderName || 'Traveler'}: ${message.text?.slice(0, 45) || 'New message'}`, 'info');
               }
+            }
+          }
+
+          if (type === 'CURSOR_MOVE' && message) {
+            if (message.userId !== activeUser?.id) {
+              setRemoteCursors(prev => ({
+                ...prev,
+                [message.userId]: { ...message, timestamp: Date.now() },
+              }));
+            }
+          }
+
+          if (type === 'CARD_FOCUS' && message) {
+            if (message.userId !== activeUser?.id) {
+              setFocusedCards(prev => {
+                const next = { ...prev };
+                if (message.isFocused) {
+                  next[message.itemId] = { ...message, timestamp: Date.now() };
+                } else {
+                  delete next[message.itemId];
+                }
+                return next;
+              });
             }
           }
 
@@ -557,6 +583,46 @@ export const TripProvider = ({ children }) => {
     socket.on('user_typing', handleTyping);
     socket.on('budget_synced', handleBudgetSynced);
     socket.on('message_reaction_synced', handleReactionSynced);
+
+    socket.on('cursor_moved', (payload) => {
+      if (!payload || !payload.userId || payload.userId === activeUser?.id) return;
+      setRemoteCursors(prev => ({
+        ...prev,
+        [payload.userId]: {
+          ...payload,
+          timestamp: Date.now(),
+        },
+      }));
+    });
+
+    socket.on('cursor_removed', ({ socketId, userId }) => {
+      setRemoteCursors(prev => {
+        const next = { ...prev };
+        if (userId && next[userId]) delete next[userId];
+        Object.keys(next).forEach(k => {
+          if (next[k].socketId === socketId) delete next[k];
+        });
+        return next;
+      });
+    });
+
+    socket.on('card_focused', (payload) => {
+      if (!payload || !payload.itemId) return;
+      setFocusedCards(prev => {
+        const next = { ...prev };
+        if (payload.isFocused) {
+          next[payload.itemId] = {
+            userId: payload.userId,
+            name: payload.name,
+            color: payload.color,
+            timestamp: Date.now(),
+          };
+        } else {
+          delete next[payload.itemId];
+        }
+        return next;
+      });
+    });
     socket.on('member_joined', handleMemberJoined);
     socket.on('trip.sync.pong', handlePong);
     socket.on('trip.leader.status', handleLeaderStatus);

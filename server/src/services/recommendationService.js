@@ -312,5 +312,113 @@ export class RecommendationService {
 
     return scoredVenues.slice(0, limit);
   }
-}
 
+  /**
+   * Evaluate recommendation Precision@5 and Recall@5 on a provided interaction dataset
+   * using a leakage-resistant temporal split (train earliest 80%, test held-out latest 20%).
+   *
+   * @param {Array} interactionRecords - Array of { userId, venueId, timestamp, rating, category, destination }
+   * @param {Object} [options={}]
+   * @returns {Promise<Object>} Comprehensive evaluation metrics & audit certification
+   */
+  static async evaluateDatasetPrecision(interactionRecords, options = {}) {
+    const { trainRatio = 0.8, k = 5 } = options;
+    if (!Array.isArray(interactionRecords) || interactionRecords.length < 5) {
+      throw new Error('Dataset must contain at least 5 interaction records for evaluation.');
+    }
+
+    const sorted = [...interactionRecords].sort((a, b) => {
+      const ta = new Date(a.timestamp || 0).getTime();
+      const tb = new Date(b.timestamp || 0).getTime();
+      return ta - tb;
+    });
+
+    const splitIndex = Math.max(1, Math.floor(sorted.length * trainRatio));
+    const trainSet = sorted.slice(0, splitIndex);
+    const testSet = sorted.slice(splitIndex);
+
+    const userTestGroundTruth = new Map();
+    testSet.forEach(rec => {
+      const uId = String(rec.userId);
+      const vId = String(rec.venueId);
+      if (!userTestGroundTruth.has(uId)) {
+        userTestGroundTruth.set(uId, new Set());
+      }
+      userTestGroundTruth.get(uId).add(vId);
+    });
+
+    const evaluatedUsers = Array.from(userTestGroundTruth.keys());
+    if (evaluatedUsers.length === 0) {
+      throw new Error('No test users found in held-out temporal partition.');
+    }
+
+    const allVenues = await dataService.listVenues();
+    let totalPrecision = 0;
+    let totalRecall = 0;
+    let totalHits = 0;
+    const userBreakdowns = [];
+
+    for (const userId of evaluatedUsers) {
+      const heldOutVenues = userTestGroundTruth.get(userId);
+      const userTrainInteractions = trainSet.filter(t => String(t.userId) === userId);
+      const userDest = userTrainInteractions[0]?.destination || 'Goa';
+
+      const tripContext = {
+        id: `eval-trip-${userId}`,
+        destination: userDest,
+        members: [{ id: userId, name: `User ${userId}` }],
+        days: [{ dayNumber: 1, items: [] }],
+      };
+
+      const recommendations = await RecommendationService.getRecommendationsForGroup(tripContext, { limit: k });
+      const recIds = recommendations.map(r => String(r.id));
+
+      let hits = 0;
+      recIds.forEach(id => {
+        if (heldOutVenues.has(id)) hits++;
+      });
+
+      const precision = hits / k;
+      const recall = heldOutVenues.size > 0 ? hits / heldOutVenues.size : 0;
+
+      totalPrecision += precision;
+      totalRecall += recall;
+      totalHits += hits;
+
+      userBreakdowns.push({
+        userId,
+        heldOutCount: heldOutVenues.size,
+        hitsAt5: hits,
+        precisionAt5: Number(precision.toFixed(3)),
+        recallAt5: Number(recall.toFixed(3)),
+      });
+    }
+
+    const meanPrecisionAt5 = Number((totalPrecision / evaluatedUsers.length).toFixed(3));
+    const meanRecallAt5 = Number((totalRecall / evaluatedUsers.length).toFixed(3));
+    const meetsTarget = meanPrecisionAt5 >= 0.60;
+
+    return {
+      evaluatedAt: new Date().toISOString(),
+      datasetStats: {
+        totalInteractions: interactionRecords.length,
+        trainInteractions: trainSet.length,
+        testInteractions: testSet.length,
+        evaluatedUsersCount: evaluatedUsers.length,
+        temporalSplitRatio: `${Math.round(trainRatio * 100)}/${Math.round((1 - trainRatio) * 100)}`,
+        catalogSize: allVenues.length,
+      },
+      metrics: {
+        precisionAt5: meanPrecisionAt5,
+        precisionAt5Percent: `${(meanPrecisionAt5 * 100).toFixed(1)}%`,
+        recallAt5: meanRecallAt5,
+        recallAt5Percent: `${(meanRecallAt5 * 100).toFixed(1)}%`,
+        totalHits,
+        targetThreshold: 0.60,
+        meetsTarget,
+      },
+      userBreakdowns: userBreakdowns.slice(0, 10),
+      methodology: 'Leakage-resistant chronological split (train earliest 80%, test held-out latest 20%)',
+    };
+  }
+}

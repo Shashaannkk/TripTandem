@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Upload, AlertCircle, CheckCircle2, X, FileJson, Sparkles, Eye, ListFilter, RefreshCw, MapPin, Clock, Tag } from 'lucide-react';
+import { Database, Upload, AlertCircle, CheckCircle2, X, FileJson, Sparkles, Eye, ListFilter, RefreshCw, MapPin, Clock, Tag, TrendingUp, Target } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -36,6 +36,23 @@ const SAMPLE_DATASET = [
 const VALID_DIETARY_TAGS = new Set(['vegetarian', 'vegan', 'halal', 'jain', 'gluten-free', 'dairy-free']);
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const SAMPLE_INTERACTIONS_DATASET = [
+  { userId: "u-101", venueId: "v-goa-1", destination: "Goa", category: "restaurant", rating: 5, timestamp: "2026-10-01T10:00:00Z" },
+  { userId: "u-101", venueId: "v-goa-2", destination: "Goa", category: "restaurant", rating: 4, timestamp: "2026-10-01T12:00:00Z" },
+  { userId: "u-101", venueId: "v-goa-3", destination: "Goa", category: "experience", rating: 5, timestamp: "2026-10-01T15:00:00Z" },
+  { userId: "u-101", venueId: "v-goa-4", destination: "Goa", category: "restaurant", rating: 5, timestamp: "2026-10-02T10:00:00Z" },
+  { userId: "u-101", venueId: "v-goa-5", destination: "Goa", category: "experience", rating: 4, timestamp: "2026-10-02T16:00:00Z" },
+  { userId: "u-102", venueId: "v-goa-1", destination: "Goa", category: "restaurant", rating: 5, timestamp: "2026-10-03T11:00:00Z" },
+  { userId: "u-102", venueId: "v-goa-2", destination: "Goa", category: "restaurant", rating: 5, timestamp: "2026-10-03T14:00:00Z" },
+  { userId: "u-102", venueId: "v-goa-6", destination: "Goa", category: "restaurant", rating: 4, timestamp: "2026-10-04T12:00:00Z" },
+  { userId: "u-102", venueId: "v-goa-4", destination: "Goa", category: "restaurant", rating: 5, timestamp: "2026-10-04T18:00:00Z" },
+  { userId: "u-103", venueId: "v-goa-3", destination: "Goa", category: "experience", rating: 5, timestamp: "2026-10-05T09:00:00Z" },
+  { userId: "u-103", venueId: "v-goa-5", destination: "Goa", category: "experience", rating: 5, timestamp: "2026-10-05T13:00:00Z" },
+  { userId: "u-103", venueId: "v-goa-7", destination: "Goa", category: "experience", rating: 4, timestamp: "2026-10-06T11:00:00Z" },
+  { userId: "u-103", venueId: "v-goa-1", destination: "Goa", category: "restaurant", rating: 4, timestamp: "2026-10-06T17:00:00Z" },
+];
+
+
 export const AdminDatasetUploadModal = ({ isOpen, onClose }) => {
   const { showToast } = useAuth();
   const [destination, setDestination] = useState('Udaipur, Rajasthan');
@@ -48,6 +65,28 @@ export const AdminDatasetUploadModal = ({ isOpen, onClose }) => {
   // Persisted Database Catalog state
   const [dbVenues, setDbVenues] = useState([]);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [precisionResult, setPrecisionResult] = useState(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalError, setEvalError] = useState(null);
+  const [interactionInput, setInteractionInput] = useState(JSON.stringify(SAMPLE_INTERACTIONS_DATASET, null, 2));
+
+  const handleRunPrecisionEval = async () => {
+    setIsEvaluating(true);
+    setEvalError(null);
+    try {
+      const parsed = JSON.parse(interactionInput);
+      if (!Array.isArray(parsed) || parsed.length < 5) {
+        throw new Error('Dataset must contain at least 5 interaction records.');
+      }
+      const res = await api.evaluateRecommenderDataset(parsed, { trainRatio: 0.8, k: 5 });
+      setPrecisionResult(res);
+      showToast('Precision@5 evaluation benchmark completed!', 'success');
+    } catch (e) {
+      setEvalError(e.message);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   // Parse JSON live for visualizer
   let parsedVenues = [];
@@ -209,6 +248,18 @@ export const AdminDatasetUploadModal = ({ isOpen, onClose }) => {
             >
               <Database className="w-3.5 h-3.5" />
               <span>Persisted DB Catalog ({dbVenues.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('precision')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'precision'
+                  ? 'bg-brand-orange text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-brand-navy/70 dark:text-slate-300 hover:text-brand-navy'
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Precision@5 Audit (REC-06)</span>
             </button>
           </div>
 
@@ -419,6 +470,102 @@ export const AdminDatasetUploadModal = ({ isOpen, onClose }) => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 4: PRECISION@5 RECOMMENDATION AUDIT */}
+          {activeTab === 'precision' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-orange/10 via-amber-500/10 to-brand-teal/10 border border-brand-orange/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-brand-orange" />
+                    <h4 className="font-bold text-sm text-brand-navy dark:text-white">
+                      REC-06: Hybrid Recommender Precision@5 Evaluation Engine
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-brand-orange text-white">
+                    Target: Precision@5 ≥ 60%
+                  </span>
+                </div>
+                <p className="text-xs text-brand-navy/70 dark:text-slate-300 leading-relaxed">
+                  Evaluates the hybrid recommender on an interaction dataset using a <strong>leakage-resistant chronological 80/20 train/test split</strong>. The earliest 80% of interactions train user taste profiles; the remaining 20% are held-out strictly as future ground truth.
+                </p>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-brand-navy dark:text-slate-300">
+                  Interaction Logs Payload (JSON array of user clicks, saves, upvotes):
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRunPrecisionEval}
+                  disabled={isEvaluating}
+                  className="px-5 py-2 rounded-full text-xs font-bold bg-brand-teal hover:bg-brand-teal-hover text-white shadow-sm flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>{isEvaluating ? 'Evaluating Model...' : 'Run Precision@5 Evaluation →'}</span>
+                </button>
+              </div>
+
+              {/* Evaluation Results Card */}
+              {precisionResult && (
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 space-y-3 animate-scaleUp">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span className="font-bold text-sm text-emerald-900 dark:text-emerald-100">
+                        Chronological Evaluation Completed Successfully
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-600 text-white shadow-sm">
+                      P@5: {precisionResult.metrics.precisionAt5Percent}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-2">
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 block">Precision@5</span>
+                      <span className="text-base font-extrabold text-emerald-600">{precisionResult.metrics.precisionAt5Percent}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 block">Recall@5</span>
+                      <span className="text-base font-extrabold text-brand-teal">{precisionResult.metrics.recallAt5Percent}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 block">Train / Test Split</span>
+                      <span className="text-base font-extrabold text-brand-navy dark:text-white">{precisionResult.datasetStats.temporalSplitRatio}</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-[10px] uppercase font-bold text-brand-navy/50 dark:text-slate-400 block">Evaluated Users</span>
+                      <span className="text-base font-extrabold text-brand-orange">{precisionResult.datasetStats.evaluatedUsersCount}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                    Methodology: <em>{precisionResult.methodology}</em> · Total Evaluated Interactions: {precisionResult.datasetStats.totalInteractions}
+                  </p>
+                </div>
+              )}
+
+              {evalError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Evaluation Error: {evalError}</span>
+                </div>
+              )}
+
+              {/* JSON Input for Interaction Telemetry */}
+              <div className="space-y-1">
+                <textarea
+                  rows={7}
+                  value={interactionInput}
+                  onChange={(e) => setInteractionInput(e.target.value)}
+                  className="w-full font-mono text-xs p-3.5 rounded-2xl bg-brand-sand/30 dark:bg-slate-900 border border-brand-sand-border dark:border-slate-800 text-brand-navy dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-teal"
+                  placeholder="Paste interaction telemetry dataset..."
+                />
+              </div>
             </div>
           )}
 

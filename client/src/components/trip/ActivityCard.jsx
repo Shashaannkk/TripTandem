@@ -31,11 +31,13 @@ export const ActivityCard = ({
   dragHandleProps = {},
 }) => {
   const { currentUser, formatPrice } = useAuth();
-  const { castVote, removeActivity, updateActivity, trip } = useTrip();
+  const { castVote, removeActivity, updateActivity, trip, focusedCards, emitCardFocus } = useTrip();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(item.title);
   const [editedTime, setEditedTime] = useState(item.startTime);
+
+  const remoteEditor = focusedCards?.[item.id];
 
   const votes = item.votes || { up: [], down: [] };
   const hasUpvoted = currentUser?.id ? votes.up?.includes(currentUser.id) : false;
@@ -45,12 +47,23 @@ export const ActivityCard = ({
   const lockThreshold = Math.ceil(totalMembers * 0.75); // e.g. 3 votes
   const isLocked = item.status === 'locked';
 
+  const handleToggleEdit = () => {
+    const nextState = !isEditing;
+    setIsEditing(nextState);
+    if (emitCardFocus) {
+      emitCardFocus(item.id, nextState);
+    }
+  };
+
   const handleSaveEdit = () => {
     updateActivity(item.id, {
       title: editedTitle,
       startTime: editedTime,
     });
     setIsEditing(false);
+    if (emitCardFocus) {
+      emitCardFocus(item.id, false);
+    }
   };
 
   const handleDragHandleKeyDown = (e) => {
@@ -66,7 +79,9 @@ export const ActivityCard = ({
   return (
     <div
       className={`group relative rounded-3xl p-4 sm:p-5 border transition-all duration-300 shadow-subtle hover:shadow-card flex flex-col md:flex-row gap-4 items-start ${
-        isDragging
+        remoteEditor
+          ? 'ring-2 ring-brand-teal border-brand-teal bg-brand-teal/5 shadow-md'
+          : isDragging
           ? 'opacity-40 scale-[0.98] ring-2 ring-brand-orange border-brand-orange bg-brand-orange/5'
           : isLocked
           ? 'border-brand-teal/40 bg-white dark:bg-slate-900 dark:border-teal-700/50'
@@ -75,6 +90,16 @@ export const ActivityCard = ({
           : 'border-dashed border-brand-sand-border dark:border-slate-800 bg-white/80 dark:bg-slate-900/80'
       }`}
     >
+      {/* Remote Collaborator Focus / Editing Badge */}
+      {remoteEditor && (
+        <div
+          className="absolute -top-3 right-5 z-20 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-md flex items-center gap-1.5 animate-bounce select-none"
+          style={{ backgroundColor: remoteEditor.color || '#2A9D8F' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+          <span>{remoteEditor.name} is editing ✍️</span>
+        </div>
+      )}
       {/* Drag Handle (Pointer, Touch, and Keyboard accessible) */}
       <div
         {...dragHandleProps}
@@ -288,7 +313,7 @@ export const ActivityCard = ({
         {/* Actions Menu */}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={handleToggleEdit}
             className="p-1.5 rounded-xl hover:bg-brand-sand text-brand-navy/70 hover:text-brand-navy"
             title="Edit details"
           >

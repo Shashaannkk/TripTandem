@@ -10,6 +10,7 @@ import { InviteModal } from '../components/trip/InviteModal';
 import { AddActivityModal } from '../components/trip/AddActivityModal';
 import { ContestedSlotDuelModal } from '../components/trip/ContestedSlotDuelModal';
 import { SessionAnalyticsModal } from '../components/trip/SessionAnalyticsModal';
+import { LiveMultiplayerCanvas } from '../components/trip/LiveMultiplayerCanvas';
 import { useTrip } from '../context/TripContext';
 import { api } from '../services/api';
 import { Calendar, Wallet, Sparkles, MessageSquare, Info, BarChart3 } from 'lucide-react';
@@ -53,73 +54,76 @@ export const TripWorkspacePage = () => {
       {/* 1. Trip Header with live presence & quick triggers */}
       <TripHeader />
 
-      {/* 2. Workspace View Tabs: Itinerary vs Budget */}
-      <div className="bg-white border-b border-brand-sand-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-6">
-            
-            <button
-              onClick={() => setWorkspaceTab('itinerary')}
-              className={`py-4 text-sm font-semibold transition-all relative flex items-center gap-2 ${
-                workspaceTab === 'itinerary'
-                  ? 'text-brand-navy'
-                  : 'text-brand-navy/60 hover:text-brand-navy'
-              }`}
-            >
-              <Calendar className="w-4 h-4 text-brand-orange" />
-              <span>Itinerary & Real-Time Voting</span>
-              {conflicts && conflicts.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              )}
-              {workspaceTab === 'itinerary' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-orange rounded-full" />
-              )}
-            </button>
+      {/* Live Multiplayer Collaborative Canvas (Multi-Cursor & Focus) */}
+      <LiveMultiplayerCanvas>
+        {/* 2. Workspace View Tabs: Itinerary vs Budget */}
+        <div className="bg-white border-b border-brand-sand-border">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-6">
+              
+              <button
+                onClick={() => setWorkspaceTab('itinerary')}
+                className={`py-4 text-sm font-semibold transition-all relative flex items-center gap-2 ${
+                  workspaceTab === 'itinerary'
+                    ? 'text-brand-navy'
+                    : 'text-brand-navy/60 hover:text-brand-navy'
+                }`}
+              >
+                <Calendar className="w-4 h-4 text-brand-orange" />
+                <span>Itinerary & Real-Time Voting</span>
+                {conflicts && conflicts.length > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                )}
+                {workspaceTab === 'itinerary' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-orange rounded-full" />
+                )}
+              </button>
 
-            <button
-              onClick={() => setWorkspaceTab('budget')}
-              className={`py-4 text-sm font-semibold transition-all relative flex items-center gap-2 ${
-                workspaceTab === 'budget'
-                  ? 'text-brand-navy'
-                  : 'text-brand-navy/60 hover:text-brand-navy'
-              }`}
-            >
-              <Wallet className="w-4 h-4 text-brand-teal" />
-              <span>Shared Budget & Fair Splits</span>
-              {workspaceTab === 'budget' && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-teal rounded-full" />
-              )}
-            </button>
+              <button
+                onClick={() => setWorkspaceTab('budget')}
+                className={`py-4 text-sm font-semibold transition-all relative flex items-center gap-2 ${
+                  workspaceTab === 'budget'
+                    ? 'text-brand-navy'
+                    : 'text-brand-navy/60 hover:text-brand-navy'
+                }`}
+              >
+                <Wallet className="w-4 h-4 text-brand-teal" />
+                <span>Shared Budget & Fair Splits</span>
+                {workspaceTab === 'budget' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-teal rounded-full" />
+                )}
+              </button>
 
-            <button
-              onClick={() => setIsAnalyticsModalOpen(true)}
-              className="py-4 text-sm font-semibold transition-all relative flex items-center gap-2 text-brand-navy/60 hover:text-brand-navy cursor-pointer ml-auto"
-              title="View live event-driven session collaboration metrics & zero-sum budget reconciliation"
-            >
-              <BarChart3 className="w-4 h-4 text-brand-teal" />
-              <span className="hidden sm:inline">Session Analytics</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal border border-brand-teal/30">
-                Audit
-              </span>
-            </button>
+              <button
+                onClick={() => setIsAnalyticsModalOpen(true)}
+                className="py-4 text-sm font-semibold transition-all relative flex items-center gap-2 text-brand-navy/60 hover:text-brand-navy cursor-pointer ml-auto"
+                title="View live event-driven session collaboration metrics & zero-sum budget reconciliation"
+              >
+                <BarChart3 className="w-4 h-4 text-brand-teal" />
+                <span className="hidden sm:inline">Session Analytics</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal border border-brand-teal/30">
+                  Audit
+                </span>
+              </button>
 
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 3. Itinerary Day Tabs (Only shown when viewing Itinerary) */}
-      {workspaceTab === 'itinerary' && (
-        <ItineraryDayTabs />
-      )}
-
-      {/* 4. Main Body Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {workspaceTab === 'itinerary' ? (
-          <ItineraryView onOpenAddModal={handleOpenAddModal} />
-        ) : (
-          <BudgetDashboard />
+        {/* 3. Itinerary Day Tabs (Only shown when viewing Itinerary) */}
+        {workspaceTab === 'itinerary' && (
+          <ItineraryDayTabs />
         )}
-      </div>
+
+        {/* 4. Main Body Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          {workspaceTab === 'itinerary' ? (
+            <ItineraryView onOpenAddModal={handleOpenAddModal} />
+          ) : (
+            <BudgetDashboard />
+          )}
+        </div>
+      </LiveMultiplayerCanvas>
 
       {/* Real-time Side Drawers */}
       <GroupChatDrawer />

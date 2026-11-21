@@ -716,6 +716,48 @@ export function setupSocketIO(io) {
     });
 
     // -----------------------------------------------------------
+    // 10. Live Multiplayer Collaborative Canvas (Cursors & Focus)
+    // -----------------------------------------------------------
+    socket.on('cursor_move', ({ tripId, x, y, user }) => {
+      const targetTripId = tripId || socket.tripId;
+      if (!targetTripId) return;
+      const effectiveUser = socket.user || user || socket.userData;
+      socket.to(`trip_${targetTripId}`).emit('cursor_moved', {
+        userId: effectiveUser?.id || socket.id,
+        name: effectiveUser?.name || 'Traveler',
+        color: effectiveUser?.color || '#FF6B45',
+        avatar: effectiveUser?.avatar,
+        x,
+        y,
+        socketId: socket.id,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on('card_focus', ({ tripId, itemId, isFocused, user }) => {
+      const targetTripId = tripId || socket.tripId;
+      if (!targetTripId || !itemId) return;
+      const effectiveUser = socket.user || user || socket.userData;
+      socket.to(`trip_${targetTripId}`).emit('card_focused', {
+        userId: effectiveUser?.id || socket.id,
+        name: effectiveUser?.name || 'Traveler',
+        color: effectiveUser?.color || '#FF6B45',
+        itemId,
+        isFocused: isFocused !== false,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on('cursor_leave', ({ tripId }) => {
+      const targetTripId = tripId || socket.tripId;
+      if (!targetTripId) return;
+      socket.to(`trip_${targetTripId}`).emit('cursor_removed', {
+        socketId: socket.id,
+        userId: socket.user?.id || socket.userData?.id,
+      });
+    });
+
+    // -----------------------------------------------------------
     // 11. Disconnect / Leave + Leader Disconnect Alert (PRD §6.1)
     // -----------------------------------------------------------
     socket.on('disconnect', async () => {
