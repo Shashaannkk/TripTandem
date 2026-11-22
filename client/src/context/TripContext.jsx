@@ -184,7 +184,7 @@ export const TripProvider = ({ children }) => {
         timestamp: Date.now()
       };
       if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('triptandem_sync');
+        const bc = new BroadcastChannel('triptandem_live_sync');
         bc.postMessage(payload);
         bc.close();
       }
@@ -220,10 +220,10 @@ export const TripProvider = ({ children }) => {
       const reqCode = norm(eventData?.inviteCode || eventData?.tripId);
       const myCode = norm(trip?.inviteCode);
       const myId = norm(trip?.id);
-      if (trip && (reqCode === myCode || reqCode === myId || (reqCode.length >= 4 && (myCode.includes(reqCode) || myId.includes(reqCode))))) {
+      if (trip && (reqCode === myCode || reqCode === myId || (reqCode.length >= 4 && (myCode.includes(reqCode) || myId.includes(reqCode) || reqCode.includes(myCode) || reqCode.includes(myId))))) {
         broadcastSync({
           type: 'PROVIDE_TRIP_STATE',
-          inviteCode: eventData?.inviteCode,
+          inviteCode: trip.inviteCode || eventData?.inviteCode,
           tripId: trip.id,
           trip: trip,
         });
@@ -237,8 +237,15 @@ export const TripProvider = ({ children }) => {
       const bId = norm(broadcastTrip.id);
       const currentCode = norm(trip?.inviteCode);
       const currentId = norm(trip?.id);
-      if (currentCode === bCode || currentId === bId) {
+      if (!trip || currentCode === bCode || currentId === bId || (bCode && (currentId.includes(bCode) || currentCode.includes(bCode))) || (currentCode && bId.includes(currentCode))) {
         setTrip(broadcastTrip);
+        try {
+          localStorage.setItem('tt_active_trip', JSON.stringify(broadcastTrip));
+          const allStored = localStorage.getItem('tt_all_trips');
+          const parsedAll = allStored ? JSON.parse(allStored) : [];
+          const updatedAll = [broadcastTrip, ...parsedAll.filter(t => t.id !== broadcastTrip.id)];
+          localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+        } catch (e) {}
       }
       return;
     }
@@ -253,8 +260,8 @@ export const TripProvider = ({ children }) => {
     const isCurrentRoom = !trip?.id || 
       (eventTripIdNorm && (eventTripIdNorm === currentTripIdNorm || eventTripIdNorm === currentTripCodeNorm)) ||
       (eventTripCodeNorm && (eventTripCodeNorm === currentTripCodeNorm || eventTripCodeNorm === currentTripIdNorm)) ||
-      (eventTripIdNorm && eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm))) ||
-      (eventTripCodeNorm && eventTripCodeNorm.length >= 4 && (currentTripCodeNorm.includes(eventTripCodeNorm) || currentTripIdNorm.includes(eventTripCodeNorm)));
+      (eventTripIdNorm && eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm) || eventTripIdNorm.includes(currentTripIdNorm) || eventTripIdNorm.includes(currentTripCodeNorm))) ||
+      (eventTripCodeNorm && eventTripCodeNorm.length >= 4 && (currentTripCodeNorm.includes(eventTripCodeNorm) || currentTripIdNorm.includes(eventTripCodeNorm) || eventTripCodeNorm.includes(currentTripIdNorm) || eventTripCodeNorm.includes(currentTripCodeNorm)));
 
     if (!isCurrentRoom) return;
 
@@ -263,7 +270,15 @@ export const TripProvider = ({ children }) => {
         if (!prev) return prev;
         const chat = prev.chat || [];
         if (chat.some(m => m.id === message.id)) return prev;
-        return { ...prev, chat: [...chat, message] };
+        const updatedTrip = { ...prev, chat: [...chat, message] };
+        try {
+          localStorage.setItem('tt_active_trip', JSON.stringify(updatedTrip));
+          const allStored = localStorage.getItem('tt_all_trips');
+          const parsedAll = allStored ? JSON.parse(allStored) : [];
+          const updatedAll = [updatedTrip, ...parsedAll.filter(t => t.id !== updatedTrip.id)];
+          localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+        } catch (e) {}
+        return updatedTrip;
       });
 
       if (!isChatOpen) {
@@ -382,12 +397,21 @@ export const TripProvider = ({ children }) => {
     if (type === 'ITINERARY_SYNC' && broadcastTrip) {
       setTrip(prev => {
         if (!prev) return broadcastTrip;
-        return {
+        const mergedMembers = broadcastTrip.members && broadcastTrip.members.length >= (prev.members || []).length
+          ? broadcastTrip.members
+          : prev.members;
+        const merged = {
           ...broadcastTrip,
-          members: broadcastTrip.members && broadcastTrip.members.length >= (prev.members || []).length
-            ? broadcastTrip.members
-            : prev.members,
+          members: mergedMembers,
         };
+        try {
+          localStorage.setItem('tt_active_trip', JSON.stringify(merged));
+          const allStored = localStorage.getItem('tt_all_trips');
+          const parsedAll = allStored ? JSON.parse(allStored) : [];
+          const updatedAll = [merged, ...parsedAll.filter(t => t.id !== merged.id)];
+          localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+        } catch (e) {}
+        return merged;
       });
       if (updatedBy && updatedBy.id !== activeUser?.id && updatedBy.name !== activeUser?.name) {
         showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
@@ -408,6 +432,13 @@ export const TripProvider = ({ children }) => {
         } else {
           msg.reactions[eventData.emoji].push(eventData.user || { id: 'unknown', name: 'Traveler' });
         }
+        try {
+          localStorage.setItem('tt_active_trip', JSON.stringify(next));
+          const allStored = localStorage.getItem('tt_all_trips');
+          const parsedAll = allStored ? JSON.parse(allStored) : [];
+          const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+          localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+        } catch (e) {}
         return next;
       });
     }
@@ -452,6 +483,40 @@ export const TripProvider = ({ children }) => {
       });
     };
   }, [trip?.inviteCode, trip?.id, handleIncomingRealtimeEvent]);
+
+  // 2b. Background Cloud Snapshot Reconciliation (Every 4.5s) to guarantee zero dropped events
+  useEffect(() => {
+    if (!trip?.inviteCode && !trip?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const code = trip?.inviteCode || trip?.id;
+        const snapshot = await fetchTripSnapshot(code, 0);
+        if (snapshot && snapshot.id) {
+          setTrip(prev => {
+            if (!prev) return snapshot;
+            const currentItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            const snapshotItemCount = (snapshot.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            const currentChatCount = (prev.chat || []).length;
+            const snapshotChatCount = (snapshot.chat || []).length;
+
+            if (snapshotItemCount > currentItemCount || snapshotChatCount > currentChatCount) {
+              const mergedMembers = snapshot.members && snapshot.members.length >= (prev.members || []).length
+                ? snapshot.members
+                : prev.members;
+              const merged = { ...snapshot, members: mergedMembers };
+              try {
+                localStorage.setItem('tt_active_trip', JSON.stringify(merged));
+              } catch (e) {}
+              return merged;
+            }
+            return prev;
+          });
+        }
+      } catch (e) {}
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [trip?.inviteCode, trip?.id]);
 
   // 3. Resilient LocalStorage & Cloud Snapshot Auto-Persist on Trip Mutation
   useEffect(() => {
@@ -985,6 +1050,16 @@ export const TripProvider = ({ children }) => {
         });
       }
 
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Vote recorded for "${targetItem.title}"`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       return next;
     });
   };
@@ -1192,6 +1267,16 @@ export const TripProvider = ({ children }) => {
       moved.positionVersion = (moved.positionVersion || 1) + 1;
       day.items.splice(targetIndex, 0, moved);
 
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Reordered activity in Day ${dayNumber}`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       return next;
     });
 
@@ -1245,6 +1330,16 @@ export const TripProvider = ({ children }) => {
       const clampedIdx = Math.max(0, Math.min(targetIndex, toDay.items.length));
       toDay.items.splice(clampedIdx, 0, moved);
 
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Moved "${movedItemTitle || 'Activity'}" to Day ${toDayNumber}`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
+
       return next;
     });
 
@@ -1279,6 +1374,15 @@ export const TripProvider = ({ children }) => {
       if (day) {
         day.items = reorderedItems;
       }
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: next.id,
+        inviteCode: next.inviteCode,
+        trip: next,
+        changeDescription: `Reordered Day ${dayNumber} items`,
+        updatedBy: currentUser || activeUser,
+      });
+      publishTripSnapshot(next);
       return next;
     });
 
@@ -1562,7 +1666,39 @@ export const TripProvider = ({ children }) => {
       targetTrip = JSON.parse(JSON.stringify(trip));
     }
 
-    // 5. Query Cloud Relay Snapshot (for cross-device / incognito sessions)
+    // 5. Query Cloud Relay Live Room for active host (cross-device & incognito live P2P transfer)
+    if (!targetTrip || !targetTrip.days?.some(d => (d.items || []).length > 0)) {
+      try {
+        await new Promise((resolve) => {
+          let unsub = null;
+          const timeout = setTimeout(() => {
+            if (unsub) unsub();
+            resolve();
+          }, 850);
+
+          unsub = subscribeCloudRoom(cleanCode, (e) => {
+            if (e?.type === 'PROVIDE_TRIP_STATE' && e.trip) {
+              const bTrip = e.trip;
+              const bCodeNorm = norm(bTrip.inviteCode);
+              const bIdNorm = norm(bTrip.id);
+              if (bCodeNorm === targetNorm || bIdNorm === targetNorm || (targetNorm.length >= 4 && (bCodeNorm.includes(targetNorm) || targetNorm.includes(bCodeNorm)))) {
+                targetTrip = JSON.parse(JSON.stringify(bTrip));
+                clearTimeout(timeout);
+                if (unsub) unsub();
+                resolve();
+              }
+            }
+          });
+
+          broadcastCloudEvent(cleanCode, {
+            type: 'REQUEST_TRIP_STATE',
+            inviteCode: cleanCode,
+          });
+        });
+      } catch (e) {}
+    }
+
+    // 6. Query Cloud Relay Snapshot (for cross-device / incognito sessions)
     if (!targetTrip || !targetTrip.days?.some(d => (d.items || []).length > 0)) {
       try {
         const cloudSnapshot = await fetchTripSnapshot(cleanCode);
@@ -1572,7 +1708,7 @@ export const TripProvider = ({ children }) => {
       } catch (e) {}
     }
 
-    // 6. If STILL not found anywhere, create a clean blank trip canvas
+    // 7. If STILL not found anywhere, create a clean blank trip canvas
     if (!targetTrip) {
       targetTrip = createBlankTrip('Custom Destination', `Trip (${cleanCode})`, 3, 30000, joiningUser);
       targetTrip.inviteCode = cleanCode;

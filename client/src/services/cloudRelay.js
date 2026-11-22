@@ -31,7 +31,9 @@ export async function publishTripSnapshot(trip) {
           method: 'POST',
           headers: {
             'Title': 'TripSnapshot',
-            'Priority': '1',
+            'Priority': '3',
+            'Cache': 'yes',
+            'X-Cache': 'yes',
           },
           body: payload,
           keepalive: true,
@@ -61,7 +63,11 @@ export async function fetchTripSnapshot(code, retries = 2) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(`https://ntfy.sh/${SNAPSHOT_PREFIX}${key}/json?poll=1&since=all`, {
+      const url = attempt === 0
+        ? `https://ntfy.sh/${SNAPSHOT_PREFIX}${key}/json?poll=1&since=24h`
+        : `https://ntfy.sh/${SNAPSHOT_PREFIX}${key}/json?poll=1`;
+
+      const res = await fetch(url, {
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -95,7 +101,7 @@ export async function fetchTripSnapshot(code, retries = 2) {
     }
 
     if (attempt < retries) {
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 400));
     }
   }
 
@@ -116,6 +122,9 @@ export async function broadcastCloudEvent(code, payload) {
       method: 'POST',
       headers: {
         'Title': payload.type || 'RoomEvent',
+        'Priority': '3',
+        'Cache': 'yes',
+        'X-Cache': 'yes',
       },
       body: bodyStr,
       keepalive: true,
