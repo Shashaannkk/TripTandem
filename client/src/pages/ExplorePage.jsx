@@ -759,7 +759,7 @@ export const ExplorePage = () => {
           <div className="lg:col-span-3 space-y-6">
             
             {/* Dedicated Trip Selection Banner when planning a trip */}
-            {tripId && (
+            {(tripId || (searchQuery && targetTripId)) && (
               <div className="bg-gradient-to-r from-brand-navy via-[#182F52] to-brand-teal text-white p-5 sm:p-6 rounded-3xl shadow-floating border border-white/10 animate-fadeIn space-y-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="space-y-1">
@@ -921,7 +921,7 @@ export const ExplorePage = () => {
       )}
 
       {/* Floating Bottom Bar when building a trip */}
-      {tripId && (
+      {(tripId || (searchQuery && targetTripId)) && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-brand-navy/95 text-white backdrop-blur-md px-5 sm:px-6 py-3 rounded-full shadow-2xl border border-white/20 flex items-center gap-4 animate-fadeIn">
           <div className="flex items-center gap-2 text-xs">
             <span className="font-bold text-brand-orange">🎒 {targetTripTitle}</span>

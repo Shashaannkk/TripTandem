@@ -8,10 +8,12 @@ import { VenueDetailModal } from '../components/venue/VenueDetailModal';
 import { PopularDestinationsCarousel } from '../components/home/PopularDestinationsCarousel';
 import { VENUES } from '../data/mockData';
 import { useTrip } from '../context/TripContext';
+import { useAuth } from '../context/AuthContext';
 import { ArrowRight, Sparkles, MapPin, Star, Flame, Compass } from 'lucide-react';
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const { currentUser, showToast } = useAuth();
   const { trip, setIsCreateTripModalOpen, createNewBlankTrip } = useTrip();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedVenue, setSelectedVenue] = useState(null);
@@ -131,7 +133,14 @@ export const HomePage = () => {
             </div>
 
             <button
-              onClick={() => trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true)}
+              onClick={() => {
+                if (!currentUser) {
+                  if (showToast) showToast('Please sign in to plan a trip', 'info');
+                  navigate('/login');
+                  return;
+                }
+                trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 bg-brand-navy hover:bg-brand-navy-light text-white px-5 py-2.5 rounded-full text-xs font-semibold shadow-sm transition-all cursor-pointer"
             >
               <span>{trip?.id ? 'Open Active Workspace' : 'Plan New Itinerary ✨'}</span>
@@ -143,6 +152,11 @@ export const HomePage = () => {
             
             <div 
               onClick={() => {
+                if (!currentUser) {
+                  if (showToast) showToast('Please sign in to plan a trip', 'info');
+                  navigate('/login');
+                  return;
+                }
                 createNewBlankTrip({ destination: 'Goa, India', title: 'Goa Collaborative Trip', daysCount: 3, budgetTotal: 30000 })
                   .then(t => navigate(`/workspace/${t.id}`));
               }}

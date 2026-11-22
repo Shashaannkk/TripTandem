@@ -177,14 +177,26 @@ export const ItineraryView = ({ onOpenAddModal }) => {
             </button>
           </div>
 
-          {/* Add Activity CTA */}
-          <button
-            onClick={() => onOpenAddModal && onOpenAddModal(currentDay.dayNumber)}
-            className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold shadow-card transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Activity</span>
-          </button>
+          {/* Action CTAs */}
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/explore?destination=${encodeURIComponent((trip?.destination || 'Manali').split(',')[0].trim())}&tripId=${trip?.id}&tripTitle=${encodeURIComponent(trip?.title || 'Trip')}`}
+              className="inline-flex items-center gap-1.5 bg-brand-sand dark:bg-slate-800 hover:bg-brand-sand-border dark:hover:bg-slate-700 text-brand-navy dark:text-white px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold border border-brand-sand-border dark:border-slate-700 transition-all cursor-pointer"
+              title={`Browse dedicated ${trip?.destination || 'destination'} place catalog to add or edit itinerary`}
+            >
+              <Compass className="w-4 h-4 text-brand-teal" />
+              <span className="hidden sm:inline">Browse {(trip?.destination || 'Destination').split(',')[0].trim()} Catalog ➔</span>
+              <span className="sm:hidden">Places ➔</span>
+            </Link>
+
+            <button
+              onClick={() => onOpenAddModal && onOpenAddModal(currentDay.dayNumber)}
+              className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold shadow-card transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Activity</span>
+            </button>
+          </div>
         </div>
       </div>
 

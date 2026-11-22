@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { TripHeader } from '../components/trip/TripHeader';
 import { ItineraryDayTabs } from '../components/trip/ItineraryDayTabs';
 import { ItineraryView } from '../components/trip/ItineraryView';
@@ -14,10 +14,11 @@ import { LiveMultiplayerCanvas } from '../components/trip/LiveMultiplayerCanvas'
 import { useTrip } from '../context/TripContext';
 import { api } from '../services/api';
 import { fetchTripSnapshot } from '../services/cloudRelay';
-import { Calendar, Wallet, Sparkles, MessageSquare, Info, BarChart3 } from 'lucide-react';
+import { Calendar, Wallet, Sparkles, MessageSquare, Info, BarChart3, Compass } from 'lucide-react';
 
 export const TripWorkspacePage = () => {
   const { tripId } = useParams();
+  const navigate = useNavigate();
   const { trip, setTrip, isChatOpen, isAiConciergeOpen, conflicts } = useTrip();
   const [workspaceTab, setWorkspaceTab] = useState('itinerary'); // 'itinerary' | 'budget'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -142,17 +143,29 @@ export const TripWorkspacePage = () => {
                 )}
               </button>
 
-              <button
-                onClick={() => setIsAnalyticsModalOpen(true)}
-                className="py-4 text-sm font-semibold transition-all relative flex items-center gap-2 text-brand-navy/60 hover:text-brand-navy cursor-pointer ml-auto"
-                title="View live event-driven session collaboration metrics & zero-sum budget reconciliation"
-              >
-                <BarChart3 className="w-4 h-4 text-brand-teal" />
-                <span className="hidden sm:inline">Session Analytics</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal border border-brand-teal/30">
-                  Audit
-                </span>
-              </button>
+              <div className="flex items-center gap-2 ml-auto py-2">
+                <button
+                  onClick={() => {
+                    const destCity = (trip?.destination || 'Manali').split(',')[0].trim();
+                    navigate(`/explore?destination=${encodeURIComponent(destCity)}&tripId=${trip?.id}&tripTitle=${encodeURIComponent(trip?.title || 'Trip')}`);
+                  }}
+                  className="py-2 px-3 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white border border-brand-orange/30 cursor-pointer shadow-xs"
+                  title={`Browse all available places in ${trip?.destination || 'destination'} to add or edit itinerary`}
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Browse {(trip?.destination || 'Destination').split(',')[0].trim()} Catalog ➔</span>
+                  <span className="sm:hidden">Places ➔</span>
+                </button>
+
+                <button
+                  onClick={() => setIsAnalyticsModalOpen(true)}
+                  className="py-2 px-3 text-xs font-semibold transition-all relative flex items-center gap-1.5 text-brand-navy/60 hover:text-brand-navy cursor-pointer border border-brand-sand-border rounded-full hover:bg-brand-sand"
+                  title="View live event-driven session collaboration metrics & zero-sum budget reconciliation"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-brand-teal" />
+                  <span className="hidden md:inline">Analytics</span>
+                </button>
+              </div>
 
             </div>
           </div>

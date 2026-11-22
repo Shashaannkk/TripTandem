@@ -41,7 +41,7 @@ export const CreateTripModal = () => {
     createNewBlankTrip, 
     trip: activeTrip 
   } = useTrip();
-  const { showToast, formatPrice } = useAuth();
+  const { showToast, formatPrice, currentUser } = useAuth();
 
   const [selectedDestOption, setSelectedDestOption] = useState('Manali, Himachal Pradesh');
   const [customDestination, setCustomDestination] = useState('');
@@ -77,6 +77,12 @@ export const CreateTripModal = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in first to plan a trip', 'warning');
+      setIsCreateTripModalOpen(false);
+      navigate('/login', { state: { returnTo: '/explore' } });
+      return;
+    }
     const effectiveDest = getEffectiveDestination();
     if (!effectiveDest) {
       showToast('Please specify a trip destination', 'warning');
@@ -150,6 +156,41 @@ export const CreateTripModal = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Sign In Required Notice */}
+        {!currentUser && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex flex-col gap-2.5 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-orange" />
+              <span className="font-bold text-xs">Sign In Required to Plan Trips</span>
+            </div>
+            <p className="text-xs opacity-90 leading-relaxed">
+              Please sign in to your account or create a free account so your group itineraries and custom places can be saved securely.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateTripModalOpen(false);
+                  navigate('/login', { state: { returnTo: '/explore' } });
+                }}
+                className="px-4 py-2 rounded-xl bg-brand-orange text-white text-xs font-bold hover:bg-brand-orange-hover transition-all cursor-pointer shadow-xs"
+              >
+                Sign In Now ➔
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateTripModalOpen(false);
+                  navigate('/register');
+                }}
+                className="px-4 py-2 rounded-xl bg-white dark:bg-slate-800 text-brand-navy dark:text-white border border-brand-sand-border dark:border-slate-700 text-xs font-bold hover:bg-brand-sand transition-all cursor-pointer"
+              >
+                Create Free Account
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">

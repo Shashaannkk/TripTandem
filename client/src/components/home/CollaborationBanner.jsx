@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Users, Vote, Lock, Sparkles, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { USERS } from '../../data/mockData';
 import { useTrip } from '../../context/TripContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const CollaborationBanner = () => {
   const navigate = useNavigate();
+  const { currentUser, showToast } = useAuth();
   const { trip, setIsCreateTripModalOpen } = useTrip();
   return (
     <section className="py-20 bg-brand-navy text-white rounded-3xl md:rounded-[3rem] my-16 mx-4 sm:mx-6 lg:mx-8 px-6 sm:px-12 lg:px-16 overflow-hidden relative shadow-card-hover">
@@ -57,7 +59,14 @@ export const CollaborationBanner = () => {
           <div className="pt-4 flex flex-wrap items-center gap-4">
             <button
               type="button"
-              onClick={() => trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true)}
+              onClick={() => {
+                if (!currentUser) {
+                  if (showToast) showToast('Please sign in to plan a trip', 'info');
+                  navigate('/login');
+                  return;
+                }
+                trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white px-7 py-3.5 rounded-full font-semibold text-sm shadow-card transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
             >
               <span>Explore Collaborative Workspace</span>

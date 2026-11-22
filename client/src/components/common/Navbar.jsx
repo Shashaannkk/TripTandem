@@ -32,8 +32,17 @@ import { CreateTripModal } from '../trip/CreateTripModal';
 export const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentUser, currency, setCurrency, isAuthenticated, logout } = useAuth();
+  const { currentUser, currency, setCurrency, isAuthenticated, logout, showToast } = useAuth();
   const { setIsAiConciergeOpen, setIsJoinModalOpen, setIsCreateTripModalOpen, trip } = useTrip();
+
+  const handlePlanTripClick = () => {
+    if (!currentUser) {
+      if (showToast) showToast('Please sign in to plan a trip', 'info');
+      navigate('/login', { state: { returnTo: '/' } });
+      return;
+    }
+    setIsCreateTripModalOpen(true);
+  };
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
@@ -305,7 +314,7 @@ export const Navbar = () => {
             {/* Desktop Plan Itinerary Primary CTA - Opens Blank Canvas Trip Creator */}
             <button
               type="button"
-              onClick={() => setIsCreateTripModalOpen(true)}
+              onClick={handlePlanTripClick}
               className="inline-flex items-center gap-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white px-3.5 xl:px-4 py-2 rounded-full text-xs xl:text-sm font-semibold shadow-card hover:shadow-card-hover transition-all transform active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-4 h-4 shrink-0" />
@@ -318,7 +327,7 @@ export const Navbar = () => {
             <ThemeToggle compact={true} />
             <button
               type="button"
-              onClick={() => setIsCreateTripModalOpen(true)}
+              onClick={handlePlanTripClick}
               className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -429,7 +438,7 @@ export const Navbar = () => {
                 type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  setIsCreateTripModalOpen(true);
+                  handlePlanTripClick();
                 }}
                 className="w-full py-2.5 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold flex items-center justify-center gap-2 shadow-card cursor-pointer"
               >

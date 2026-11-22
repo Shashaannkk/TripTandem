@@ -6,7 +6,7 @@ import { Badge } from '../common/Badge';
 
 export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
   const { formatPrice, savedFavorites, toggleFavorite } = useAuth();
-  const { addActivity, trip } = useTrip();
+  const { addActivity, removeActivity, trip } = useTrip();
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
@@ -188,11 +188,35 @@ export const VenueCard = ({ venue, onSelectVenue, guestCount = 1 }) => {
           </div>
 
           <div className="flex items-center gap-1.5">
-            {isInTrip ? (
-              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>In Itinerary</span>
-              </span>
+            {trip?.days && trip.days.length > 0 ? (
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {trip.days.slice(0, 5).map(d => {
+                  const matchingItem = (d.items || []).find(i => i.venueId === venue.id || i.title === venue.name);
+                  const isAddedToThisDay = !!matchingItem;
+                  return (
+                    <button
+                      key={d.dayNumber}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isAddedToThisDay && matchingItem) {
+                          removeActivity(matchingItem.id);
+                        } else {
+                          handleQuickAdd(e, d.dayNumber);
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        isAddedToThisDay
+                          ? 'bg-emerald-600 text-white shadow-xs hover:bg-rose-600'
+                          : 'bg-brand-sand dark:bg-slate-800 text-brand-navy dark:text-slate-300 hover:bg-brand-orange hover:text-white border border-brand-sand-border dark:border-slate-700'
+                      }`}
+                      title={isAddedToThisDay ? `Added to Day ${d.dayNumber} (click to remove)` : `Add to Day ${d.dayNumber}`}
+                    >
+                      {isAddedToThisDay ? `✓ D${d.dayNumber}` : `+ D${d.dayNumber}`}
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <button
                 type="button"

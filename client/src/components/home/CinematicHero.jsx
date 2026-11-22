@@ -21,7 +21,7 @@ import { validateBookingDates } from '../../utils/dateUtils';
 
 export const CinematicHero = () => {
   const navigate = useNavigate();
-  const { formatPrice } = useAuth();
+  const { formatPrice, currentUser, showToast } = useAuth();
   const { createTripFromBooking, setIsJoinModalOpen, setIsCreateTripModalOpen, trip } = useTrip();
   const videoRef = useRef(null);
 
@@ -96,6 +96,11 @@ export const CinematicHero = () => {
   const handleCreateItinerary = (e) => {
     e.preventDefault();
     setValidationError('');
+    if (!currentUser) {
+      if (showToast) showToast('Please sign in to plan a trip', 'info');
+      navigate('/login');
+      return;
+    }
     if (!destination.trim()) {
       setValidationError('Please choose a destination to create your trip itinerary.');
       return;
@@ -293,7 +298,14 @@ export const CinematicHero = () => {
         {/* Secondary Action Shortcuts */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <button
-            onClick={() => trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true)}
+            onClick={() => {
+              if (!currentUser) {
+                if (showToast) showToast('Please sign in to plan a trip', 'info');
+                navigate('/login');
+                return;
+              }
+              trip?.id ? navigate(`/workspace/${trip.id}`) : setIsCreateTripModalOpen(true);
+            }}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-brand-orange to-amber-500 hover:from-brand-orange-hover hover:to-amber-600 text-white font-bold px-6 py-2.5 rounded-full text-xs transition-all shadow-card hover:shadow-card-hover group cursor-pointer"
           >
             <span>🚀 Enter Collaborative Trip Workspace</span>

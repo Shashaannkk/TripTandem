@@ -177,16 +177,31 @@ export const TripProvider = ({ children }) => {
   // Cross-Tab & Cross-Device Broadcast Helper (0ms latency local + cloud relay synchronization)
   const broadcastSync = (data) => {
     try {
-      const payload = { ...data, originClientId: clientIdRef.current };
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        const bc = new BroadcastChannel('triptandem_live_sync');
+      const payload = {
+        tripId: data?.tripId || trip?.id,
+        inviteCode: data?.inviteCode || trip?.inviteCode,
+        ...data,
+        timestamp: Date.now()
+      };
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('triptandem_sync');
         bc.postMessage(payload);
         bc.close();
       }
-      const roomTarget = trip?.inviteCode || trip?.id || data?.inviteCode || data?.tripId;
-      if (roomTarget) {
-        broadcastCloudEvent(roomTarget, payload);
-      }
+      
+      const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const rawTargets = [
+        payload.inviteCode,
+        payload.tripId,
+        data?.trip?.inviteCode,
+        data?.trip?.id,
+        trip?.inviteCode,
+        trip?.id,
+      ];
+      const validKeys = Array.from(new Set(rawTargets.map(norm).filter(k => k && k.length >= 3)));
+      validKeys.forEach(key => {
+        broadcastCloudEvent(key, payload);
+      });
     } catch (e) {}
   };
 
@@ -232,12 +247,14 @@ export const TripProvider = ({ children }) => {
     const normStr = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const currentTripIdNorm = normStr(trip?.id);
     const currentTripCodeNorm = normStr(trip?.inviteCode);
-    const eventTripIdNorm = normStr(tripId);
+    const eventTripIdNorm = normStr(tripId || eventData?.trip?.id);
+    const eventTripCodeNorm = normStr(eventData?.inviteCode || eventData?.trip?.inviteCode);
 
-    const isCurrentRoom = !tripId || !trip?.id || 
-      eventTripIdNorm === currentTripIdNorm || 
-      eventTripIdNorm === currentTripCodeNorm ||
-      (eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm)));
+    const isCurrentRoom = !trip?.id || 
+      (eventTripIdNorm && (eventTripIdNorm === currentTripIdNorm || eventTripIdNorm === currentTripCodeNorm)) ||
+      (eventTripCodeNorm && (eventTripCodeNorm === currentTripCodeNorm || eventTripCodeNorm === currentTripIdNorm)) ||
+      (eventTripIdNorm && eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm))) ||
+      (eventTripCodeNorm && eventTripCodeNorm.length >= 4 && (currentTripCodeNorm.includes(eventTripCodeNorm) || currentTripIdNorm.includes(eventTripCodeNorm)));
 
     if (!isCurrentRoom) return;
 
@@ -376,6 +393,24 @@ export const TripProvider = ({ children }) => {
         showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
       }
     }
+    if (type === 'MESSAGE_REACTION' && eventData.messageId && eventData.emoji) {
+      setTrip(prev => {
+        if (!prev) return prev;
+        const next = JSON.parse(JSON.stringify(prev));
+        const msg = (next.chat || []).find(m => m.id === eventData.messageId);
+        if (!msg) return prev;
+        if (!msg.reactions) msg.reactions = {};
+        if (!msg.reactions[eventData.emoji]) msg.reactions[eventData.emoji] = [];
+        const userIdx = msg.reactions[eventData.emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === eventData.user?.id);
+        if (userIdx >= 0) {
+          msg.reactions[eventData.emoji].splice(userIdx, 1);
+          if (msg.reactions[eventData.emoji].length === 0) delete msg.reactions[eventData.emoji];
+        } else {
+          msg.reactions[eventData.emoji].push(eventData.user || { id: 'unknown', name: 'Traveler' });
+        }
+        return next;
+      });
+    }
   }, [trip, activeUser, isChatOpen, showToast]);
 
   // 1. Cross-Tab BroadcastChannel Listener (Same-browser multi-tab)
@@ -399,17 +434,22 @@ export const TripProvider = ({ children }) => {
 
   // 2. Cloud Relay WebSocket Listener (Cross-Device, Mobile, Cross-Browser & Incognito)
   useEffect(() => {
-    const code = trip?.inviteCode || trip?.id;
-    if (!code) return;
+    const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const keys = Array.from(new Set([norm(trip?.inviteCode), norm(trip?.id)].filter(k => k && k.length >= 3)));
+    if (keys.length === 0) return;
 
     setIsCloudRelayConnected(true);
-    const unsub = subscribeCloudRoom(code, (payload) => {
-      handleIncomingRealtimeEvent(payload);
-    });
+    const unsubs = keys.map(key =>
+      subscribeCloudRoom(key, (payload) => {
+        handleIncomingRealtimeEvent(payload);
+      })
+    );
 
     return () => {
       setIsCloudRelayConnected(false);
-      unsub();
+      unsubs.forEach(u => {
+        try { u(); } catch (e) {}
+      });
     };
   }, [trip?.inviteCode, trip?.id, handleIncomingRealtimeEvent]);
 
@@ -996,13 +1036,17 @@ export const TripProvider = ({ children }) => {
 
       day.items.push(newItem);
 
-      // Rebalance category budget safely
+      // Rebalance category budget dynamically from actual itinerary items
       if (next.budget) {
-        if (!next.budget.categories) next.budget.categories = {};
-        if (newItem.costPerPerson > 0) {
-          const cat = newItem.category === 'stay' ? 'accommodation' : newItem.category === 'restaurant' ? 'food' : 'activities';
-          next.budget.categories[cat] = (next.budget.categories[cat] || 0) + (newItem.costPerPerson * ((next.members && next.members.length) || 1));
-        }
+        const newCategories = { accommodation: 0, food: 0, transport: 0, activities: 0, other: 0 };
+        const memberCount = Math.max((next.members && next.members.length) || 1, 1);
+        (next.days || []).forEach(d => {
+          (d.items || []).forEach(i => {
+            const cat = i.category === 'stay' ? 'accommodation' : (i.category === 'restaurant' || i.category === 'dining') ? 'food' : 'activities';
+            newCategories[cat] = (newCategories[cat] || 0) + ((Number(i.costPerPerson) || 0) * memberCount);
+          });
+        });
+        next.budget.categories = newCategories;
       }
 
       try {
@@ -1085,6 +1129,27 @@ export const TripProvider = ({ children }) => {
           break;
         }
       }
+
+      // Rebalance category budget dynamically from actual remaining itinerary items
+      if (next.budget) {
+        const newCategories = { accommodation: 0, food: 0, transport: 0, activities: 0, other: 0 };
+        const memberCount = Math.max((next.members && next.members.length) || 1, 1);
+        (next.days || []).forEach(d => {
+          (d.items || []).forEach(i => {
+            const cat = i.category === 'stay' ? 'accommodation' : (i.category === 'restaurant' || i.category === 'dining') ? 'food' : 'activities';
+            newCategories[cat] = (newCategories[cat] || 0) + ((Number(i.costPerPerson) || 0) * memberCount);
+          });
+        });
+        next.budget.categories = newCategories;
+      }
+
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
 
       if (socket) {
         socket.emit('itinerary_change', {
@@ -1335,6 +1400,7 @@ export const TripProvider = ({ children }) => {
     broadcastSync({
       type: 'NEW_CHAT_MESSAGE',
       tripId: trip.id,
+      inviteCode: trip.inviteCode,
       message: newMsg,
     });
   };
@@ -1368,6 +1434,16 @@ export const TripProvider = ({ children }) => {
         token: token || undefined,
       });
     }
+
+    // Cross-tab and cloud relay broadcast for live reaction sync across all devices
+    broadcastSync({
+      type: 'MESSAGE_REACTION',
+      tripId: trip?.id,
+      inviteCode: trip?.inviteCode,
+      messageId,
+      emoji,
+      user: { id: activeUser.id, name: activeUser.name },
+    });
   };
 
   // Add a new member to the trip
@@ -1787,6 +1863,7 @@ export const TripProvider = ({ children }) => {
       broadcastSync({
         type: 'USER_TYPING',
         tripId: trip.id,
+        inviteCode: trip.inviteCode,
         user: activeUser,
         isTyping: Boolean(isTyping),
       });
@@ -2042,14 +2119,23 @@ export const TripProvider = ({ children }) => {
     });
 
     // 3. Budget overrun check
-    const totalSpent = Object.values(trip.budget.categories || {}).reduce((a, b) => a + b, 0);
-    if (totalSpent > trip.budget.totalTarget) {
-      const diff = totalSpent - trip.budget.totalTarget;
+    let totalPlannedCost = 0;
+    const membersCount = Math.max((trip.members && trip.members.length) || 1, 1);
+    (trip.days || []).forEach(day => {
+      (day.items || []).forEach(item => {
+        totalPlannedCost += (Number(item.costPerPerson) || 0) * membersCount;
+      });
+    });
+    const actualLoggedExpenses = (trip.budget?.expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const totalCommitted = Math.max(totalPlannedCost, actualLoggedExpenses);
+    const targetLimit = Number(trip.budget?.totalTarget) || 0;
+    if (targetLimit > 0 && totalCommitted > targetLimit) {
+      const diff = totalCommitted - targetLimit;
       list.push({
         id: 'conflict-budget',
         type: 'budget_overrun',
         title: 'Budget Alert',
-        description: `Current estimated itinerary total (₹${totalSpent.toLocaleString()}) exceeds target by ₹${diff.toLocaleString()}.`,
+        description: `Current estimated itinerary total (₹${totalCommitted.toLocaleString()}) exceeds target by ₹${diff.toLocaleString()}.`,
         suggestion: 'Review optional evening activities or adjust individual contributions.',
         actionLabel: 'View Budget Breakdown',
         resolve: () => setIsAiConciergeOpen(true),

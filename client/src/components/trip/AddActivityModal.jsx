@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Plus, Sparkles, MapPin, Clock, Coins, Compass } from 'lucide-react';
 import { useTrip } from '../../context/TripContext';
 import { VENUES } from '../../data/mockData';
 
 export const AddActivityModal = ({ isOpen, onClose, defaultDayNumber = 1 }) => {
+  const navigate = useNavigate();
   const { addActivity, trip } = useTrip();
 
+  const destCity = (trip?.destination || 'Goa').split(',')[0].trim();
+  const relevantVenues = useMemo(() => {
+    const term = destCity.toLowerCase();
+    const matches = VENUES.filter(v => (v.destination || '').toLowerCase().includes(term) || (v.region || '').toLowerCase().includes(term));
+    return matches.length > 0 ? matches : VENUES;
+  }, [destCity]);
+
   const [mode, setMode] = useState('curated'); // 'curated' | 'custom'
-  const [selectedVenue, setSelectedVenue] = useState(VENUES[0]);
+  const [selectedVenue, setSelectedVenue] = useState(relevantVenues[0] || VENUES[0]);
   const [targetDay, setTargetDay] = useState(defaultDayNumber);
   const [targetSlot, setTargetSlot] = useState('afternoon');
   const [startTime, setStartTime] = useState('02:00 PM');
@@ -103,21 +112,34 @@ export const AddActivityModal = ({ isOpen, onClose, defaultDayNumber = 1 }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {mode === 'curated' ? (
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-1">
-                Select Curated Venue
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-brand-navy mb-1 flex items-center justify-between">
+                <span>Select Curated Place ({destCity})</span>
+                <span className="text-[10px] text-brand-teal font-bold">{relevantVenues.length} available</span>
               </label>
               <select
                 value={selectedVenue?.id}
-                onChange={(e) => setSelectedVenue(VENUES.find(v => v.id === e.target.value))}
+                onChange={(e) => setSelectedVenue(relevantVenues.find(v => v.id === e.target.value) || VENUES.find(v => v.id === e.target.value))}
                 className="w-full text-xs rounded-xl p-2.5 border border-brand-sand-border focus:outline-none bg-brand-sand"
               >
-                {VENUES.map((v) => (
+                {relevantVenues.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name} ({v.destination} · ₹{v.price})
+                    {v.name} ({v.region || v.destination} · ₹{v.price})
                   </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate(`/explore?destination=${encodeURIComponent(destCity)}&tripId=${trip?.id}&tripTitle=${encodeURIComponent(trip?.title || 'Trip')}`);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white border border-brand-orange/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>Browse Dedicated {destCity} Catalog Page ➔</span>
+              </button>
             </div>
           ) : (
             <>
