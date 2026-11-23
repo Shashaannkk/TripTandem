@@ -128,7 +128,8 @@ export const JoinTripPage = () => {
         role: selectedRole || 'Planner',
       };
       try {
-        localStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
+        sessionStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));
+        localStorage.setItem('tt_last_joiner', JSON.stringify(joiningUser));
       } catch (e) {}
 
       const joinedTrip = await joinTripByCode(code.trim(), selectedRole, joiningUser);

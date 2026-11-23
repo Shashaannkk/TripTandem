@@ -17,20 +17,25 @@ const TripContext = createContext();
 export const TripProvider = ({ children }) => {
   const { currentUser, showToast } = useAuth();
 
-  // Resilient traveler identity fallback (for guest travelers collaborating before explicit login)
+  // Resilient traveler identity fallback (per-tab session isolated for multi-window testing)
   const getActiveUser = useCallback(() => {
     if (currentUser && currentUser.id) return currentUser;
     try {
+      const sessionSaved = sessionStorage.getItem('tt_traveler_identity');
+      if (sessionSaved) {
+        const parsed = JSON.parse(sessionSaved);
+        if (parsed && parsed.id && parsed.name) return parsed;
+      }
       const saved = localStorage.getItem('tt_traveler_identity');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.id && parsed.name) return parsed;
       }
     } catch {}
-    let guestId = localStorage.getItem('tt_guest_id');
+    let guestId = sessionStorage.getItem('tt_guest_id');
     if (!guestId) {
       guestId = `user-guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-      localStorage.setItem('tt_guest_id', guestId);
+      sessionStorage.setItem('tt_guest_id', guestId);
     }
     const guestUser = {
       id: guestId,
@@ -42,7 +47,7 @@ export const TripProvider = ({ children }) => {
       status: 'online',
     };
     try {
-      localStorage.setItem('tt_traveler_identity', JSON.stringify(guestUser));
+      sessionStorage.setItem('tt_traveler_identity', JSON.stringify(guestUser));
     } catch {}
     return guestUser;
   }, [currentUser]);
@@ -181,13 +186,27 @@ export const TripProvider = ({ children }) => {
         tripId: data?.tripId || trip?.id,
         inviteCode: data?.inviteCode || trip?.inviteCode,
         ...data,
+        originClientId: clientIdRef.current,
         timestamp: Date.now()
       };
+
+      // 1. Post to BroadcastChannel (0ms latency across same-browser tabs)
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('triptandem_live_sync');
         bc.postMessage(payload);
-        bc.close();
+        setTimeout(() => {
+          try { bc.close(); } catch (e) {}
+        }, 500);
       }
+
+      // 2. High-reliability localStorage event (100% supported across all tabs & windows)
+      try {
+        localStorage.setItem('tt_live_event', JSON.stringify({
+          payload,
+          ts: Date.now(),
+          rnd: Math.random()
+        }));
+      } catch (e) {}
       
       const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const rawTargets = [
@@ -444,14 +463,19 @@ export const TripProvider = ({ children }) => {
     }
   }, [trip, activeUser, isChatOpen, showToast]);
 
-  // 1. Cross-Tab BroadcastChannel Listener (Same-browser multi-tab)
+  const handleIncomingRealtimeEventRef = useRef(null);
+  handleIncomingRealtimeEventRef.current = handleIncomingRealtimeEvent;
+
+  // 1. Cross-Tab BroadcastChannel Listener (Same-browser multi-tab - connects once and stays connected)
   useEffect(() => {
     let channel = null;
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         channel = new BroadcastChannel('triptandem_live_sync');
         channel.onmessage = (event) => {
-          handleIncomingRealtimeEvent(event.data);
+          if (handleIncomingRealtimeEventRef.current) {
+            handleIncomingRealtimeEventRef.current(event.data);
+          }
         };
       }
     } catch (e) {
@@ -461,7 +485,7 @@ export const TripProvider = ({ children }) => {
     return () => {
       if (channel) channel.close();
     };
-  }, [handleIncomingRealtimeEvent]);
+  }, []);
 
   // 2. Cloud Relay WebSocket Listener (Cross-Device, Mobile, Cross-Browser & Incognito)
   useEffect(() => {
@@ -472,7 +496,9 @@ export const TripProvider = ({ children }) => {
     setIsCloudRelayConnected(true);
     const unsubs = keys.map(key =>
       subscribeCloudRoom(key, (payload) => {
-        handleIncomingRealtimeEvent(payload);
+        if (handleIncomingRealtimeEventRef.current) {
+          handleIncomingRealtimeEventRef.current(payload);
+        }
       })
     );
 
@@ -482,7 +508,7 @@ export const TripProvider = ({ children }) => {
         try { u(); } catch (e) {}
       });
     };
-  }, [trip?.inviteCode, trip?.id, handleIncomingRealtimeEvent]);
+  }, [trip?.inviteCode, trip?.id]);
 
   // 2b. Background Cloud Snapshot Reconciliation (Every 4.5s) to guarantee zero dropped events
   useEffect(() => {
@@ -543,6 +569,14 @@ export const TripProvider = ({ children }) => {
   // Multi-tab storage event synchronization
   useEffect(() => {
     const handleStorageChange = (e) => {
+      if (e.key === 'tt_live_event' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.payload && handleIncomingRealtimeEventRef.current) {
+            handleIncomingRealtimeEventRef.current(parsed.payload);
+          }
+        } catch (err) {}
+      }
       if (e.key === 'tt_active_trip' && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
@@ -1187,6 +1221,14 @@ export const TripProvider = ({ children }) => {
       });
       publishTripSnapshot(next);
 
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
+
       return next;
     });
   };
@@ -1277,6 +1319,14 @@ export const TripProvider = ({ children }) => {
       });
       publishTripSnapshot(next);
 
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
+
       return next;
     });
 
@@ -1340,6 +1390,14 @@ export const TripProvider = ({ children }) => {
       });
       publishTripSnapshot(next);
 
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
+
       return next;
     });
 
@@ -1383,6 +1441,13 @@ export const TripProvider = ({ children }) => {
         updatedBy: currentUser || activeUser,
       });
       publishTripSnapshot(next);
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
       return next;
     });
 
@@ -1428,6 +1493,14 @@ export const TripProvider = ({ children }) => {
       };
 
       next.budget.expenses = [...(next.budget.expenses || []), newExp];
+
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
 
       if (socket) {
         socket.emit('budget_change', {
@@ -1488,6 +1561,14 @@ export const TripProvider = ({ children }) => {
         next.budget.expenses = [...(next.budget.expenses || []), billExp];
       }
 
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
+
       return next;
     });
 
@@ -1525,6 +1606,15 @@ export const TripProvider = ({ children }) => {
       } else {
         msg.reactions[emoji].push({ id: activeUser.id, name: activeUser.name });
       }
+
+      try {
+        localStorage.setItem('tt_active_trip', JSON.stringify(next));
+        const allStored = localStorage.getItem('tt_all_trips');
+        const parsedAll = allStored ? JSON.parse(allStored) : [];
+        const updatedAll = [next, ...parsedAll.filter(t => t.id !== next.id)];
+        localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+      } catch (e) {}
+
       return next;
     });
 
@@ -1667,7 +1757,7 @@ export const TripProvider = ({ children }) => {
     }
 
     // 5. Query Cloud Relay Live Room for active host (cross-device & incognito live P2P transfer)
-    if (!targetTrip || !targetTrip.days?.some(d => (d.items || []).length > 0)) {
+    if (!targetTrip) {
       try {
         await new Promise((resolve) => {
           let unsub = null;
@@ -1699,7 +1789,7 @@ export const TripProvider = ({ children }) => {
     }
 
     // 6. Query Cloud Relay Snapshot (for cross-device / incognito sessions)
-    if (!targetTrip || !targetTrip.days?.some(d => (d.items || []).length > 0)) {
+    if (!targetTrip) {
       try {
         const cloudSnapshot = await fetchTripSnapshot(cleanCode);
         if (cloudSnapshot && (cloudSnapshot.title || cloudSnapshot.destination)) {

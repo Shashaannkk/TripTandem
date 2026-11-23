@@ -28,13 +28,13 @@ export const TripWorkspacePage = () => {
   useEffect(() => {
     if (!tripId) return;
 
-    // 1. If in-memory trip is already this trip with populated activities, preserve it!
-    if (trip && trip.id === tripId && trip.days?.some(d => (d.items || []).length > 0)) {
-      return;
-    }
-
+    // 1. If in-memory trip is already this trip, preserve it!
     const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const targetNorm = norm(tripId);
+
+    if (trip && (norm(trip.id) === targetNorm || norm(trip.inviteCode) === targetNorm || (targetNorm.length >= 4 && (norm(trip.id).includes(targetNorm) || norm(trip.inviteCode).includes(targetNorm))))) {
+      return;
+    }
 
     // 2. Check localStorage
     try {
@@ -79,7 +79,7 @@ export const TripWorkspacePage = () => {
 
     // 4. Check server API
     api.getTripById(tripId).then(fetched => {
-      if (fetched && fetched.id === tripId) {
+      if (fetched && (norm(fetched.id) === targetNorm || norm(fetched.inviteCode) === targetNorm)) {
         setTrip(fetched);
       }
     });
