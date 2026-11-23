@@ -64,19 +64,8 @@ export const TripProvider = ({ children }) => {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.id) {
-          if (parsed.chat) {
-            parsed.chat = parsed.chat.filter(
-              m => m.isSystem || (m.senderName && !['Alex Morgan', 'Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.senderName))
-            );
-          }
-          if (parsed.members) {
-            parsed.members = parsed.members.filter(
-              m => !m.isDemo || m.role === 'Leader' || m.id === parsed.leaderUserId
-            );
-            if (parsed.members.length === 0) {
-              parsed.members = [{ id: 'user-1', name: 'Trip Host', role: 'Leader', color: '#FF6B45', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', status: 'online' }];
-            }
-          }
+          if (!Array.isArray(parsed.members)) parsed.members = [];
+          if (!Array.isArray(parsed.chat)) parsed.chat = [];
           return parsed;
         }
       } catch (e) {}
@@ -431,9 +420,14 @@ export const TripProvider = ({ children }) => {
     if (type === 'ITINERARY_SYNC' && broadcastTrip) {
       setTrip(prev => {
         if (!prev) return broadcastTrip;
-        const mergedMembers = broadcastTrip.members && broadcastTrip.members.length >= (prev.members || []).length
-          ? broadcastTrip.members
-          : prev.members;
+        const currentMembers = prev.members || [];
+        const incomingMembers = broadcastTrip.members || [];
+        const mergedMembers = [...currentMembers];
+        incomingMembers.forEach(im => {
+          const idx = mergedMembers.findIndex(m => (m.id && im.id && m.id === im.id) || (m.name && im.name && m.name.toLowerCase() === im.name.toLowerCase()));
+          if (idx >= 0) mergedMembers[idx] = { ...mergedMembers[idx], ...im };
+          else mergedMembers.push(im);
+        });
         const merged = {
           ...broadcastTrip,
           members: mergedMembers,
@@ -602,22 +596,21 @@ export const TripProvider = ({ children }) => {
     const emitJoin = () => {
       socket.emit('join_trip', joinPayload, (ack) => {
         if (ack && ack.success) {
-          if (ack.trip) {
+          if (ack.activeUsers) setActiveCollaborators(ack.activeUsers);
+          if (ack.trip && ack.trip.members) {
             setTrip(prev => {
               if (!prev) return ack.trip;
-              const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-              const ackItemCount = (ack.trip.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-              if (ackItemCount >= prevItemCount) {
-                return ack.trip;
-              } else {
-                const mergedMembers = ack.trip.members && ack.trip.members.length >= (prev.members || []).length
-                  ? ack.trip.members
-                  : prev.members;
-                return { ...prev, members: mergedMembers };
-              }
+              const currentMembers = prev.members || [];
+              const serverMembers = ack.trip.members || [];
+              const merged = [...currentMembers];
+              serverMembers.forEach(sm => {
+                if (!merged.some(m => (m.id && sm.id && m.id === sm.id) || (m.name && sm.name && m.name.toLowerCase() === sm.name.toLowerCase()))) {
+                  merged.push(sm);
+                }
+              });
+              return { ...prev, members: merged };
             });
           }
-          if (ack.activeUsers) setActiveCollaborators(ack.activeUsers);
         }
       });
     };
@@ -1537,6 +1530,7 @@ export const TripProvider = ({ children }) => {
 
   const sendChatMessage = (text, attachment = null, customSender = null) => {
     if (!text?.trim() && !attachment) return;
+    const currentTrip = tripRef.current || trip;
     const sender = customSender || {
       id: activeUser.id,
       name: activeUser.name,
@@ -1571,13 +1565,14 @@ export const TripProvider = ({ children }) => {
           title: attachment.title || 'Shared Expense',
           category: attachment.category || 'food',
           amount: Number(attachment.amount) || 0,
-          paidBy: attachment.paidBy || activeUser.name,
-          splitWith: attachment.splitWith || next.members.map(m => m.name),
+          paidBy: attachment.paidBy || sender.name || activeUser.name,
+          splitWith: attachment.splitWith || (next.members || []).map(m => m.name),
           date: new Date().toISOString().split('T')[0],
           type: 'actual',
           receiptUrl: attachment.receiptUrl || null,
           notes: 'Logged directly via Trip Chat',
         };
+        if (!next.budget) next.budget = { expenses: [] };
         next.budget.expenses = [...(next.budget.expenses || []), billExp];
       }
 
@@ -1592,27 +1587,31 @@ export const TripProvider = ({ children }) => {
       return next;
     });
 
-    if (socket && trip?.id) {
+    if (socket && currentTrip?.id) {
       const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
       socket.emit('send_message', {
-        tripId: trip.id,
+        tripId: currentTrip.id,
         message: newMsg,
         token: token || undefined,
       });
     }
 
     // Cross-tab live broadcast
-    broadcastSync({
-      type: 'NEW_CHAT_MESSAGE',
-      tripId: trip.id,
-      inviteCode: trip.inviteCode,
-      message: newMsg,
-    });
+    if (currentTrip?.id) {
+      broadcastSync({
+        type: 'NEW_CHAT_MESSAGE',
+        tripId: currentTrip.id,
+        inviteCode: currentTrip.inviteCode,
+        message: newMsg,
+      });
+    }
   };
 
   // Instagram / WhatsApp-style emoji reactions
-  const reactToMessage = (messageId, emoji) => {
+  const reactToMessage = (messageId, emoji, customUser = null) => {
     let updatedReactions = null;
+    const actor = customUser || activeUser;
+    const currentTrip = tripRef.current || trip;
 
     setTrip(prev => {
       const next = JSON.parse(JSON.stringify(prev));
@@ -1621,12 +1620,14 @@ export const TripProvider = ({ children }) => {
       if (!msg.reactions) msg.reactions = {};
       if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
 
-      const userIdx = msg.reactions[emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === activeUser.id);
+      const userIdx = msg.reactions[emoji].findIndex(
+        u => (typeof u === 'string' ? u : u.id) === actor.id || (typeof u === 'object' && u.name && actor.name && u.name.toLowerCase() === actor.name.toLowerCase())
+      );
       if (userIdx >= 0) {
         msg.reactions[emoji].splice(userIdx, 1);
         if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
       } else {
-        msg.reactions[emoji].push({ id: activeUser.id, name: activeUser.name });
+        msg.reactions[emoji].push({ id: actor.id, name: actor.name });
       }
 
       updatedReactions = msg.reactions;
@@ -1642,28 +1643,30 @@ export const TripProvider = ({ children }) => {
       return next;
     });
 
-    if (socket && trip) {
+    if (socket && currentTrip?.id) {
       const token = localStorage.getItem('tt_token') || sessionStorage.getItem('tt_token');
       socket.emit('message_reaction', {
-        tripId: trip.id,
+        tripId: currentTrip.id,
         messageId,
         emoji,
-        user: { id: activeUser.id, name: activeUser.name },
+        user: { id: actor.id, name: actor.name },
         reactions: updatedReactions,
         token: token || undefined,
       });
     }
 
     // Cross-tab and cloud relay broadcast for live reaction sync across all devices
-    broadcastSync({
-      type: 'MESSAGE_REACTION',
-      tripId: trip?.id,
-      inviteCode: trip?.inviteCode,
-      messageId,
-      emoji,
-      user: { id: activeUser.id, name: activeUser.name },
-      reactions: updatedReactions,
-    });
+    if (currentTrip?.id) {
+      broadcastSync({
+        type: 'MESSAGE_REACTION',
+        tripId: currentTrip.id,
+        inviteCode: currentTrip.inviteCode,
+        messageId,
+        emoji,
+        user: { id: actor.id, name: actor.name },
+        reactions: updatedReactions,
+      });
+    }
   };
 
   // Add a new member to the trip
@@ -1841,10 +1844,7 @@ export const TripProvider = ({ children }) => {
       status: 'online',
     };
 
-    // Filter out mock seed members, but keep all real participants and the leader!
-    targetTrip.members = (targetTrip.members || []).filter(
-      m => m.id === newMemberObj.id || m.role === 'Leader' || m.id === targetTrip.leaderUserId || (!m.isDemo && !['Priya Sharma', 'Rohan Mehta', 'Aisha Khan'].includes(m.name))
-    );
+    if (!Array.isArray(targetTrip.members)) targetTrip.members = [];
 
     const alreadyMember = targetTrip.members.some(
       m => (m.id && newMemberObj.id && m.id === newMemberObj.id) ||

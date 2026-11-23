@@ -91,8 +91,13 @@ export function setupSocketIO(io) {
       return { authorized: true, role: 'Admin' };
     }
 
+    const isInRoom = (socket.rooms && socket.rooms.has(`trip_${tripId}`)) || socket.tripId === tripId;
+
     const trip = await dataService.getTripById(tripId);
     if (!trip) {
+      if (isInRoom) {
+        return { authorized: true, role: activeUser.role || 'Planner' };
+      }
       return { authorized: false, error: `Trip "${tripId}" not found.` };
     }
 
@@ -112,7 +117,6 @@ export function setupSocketIO(io) {
       );
     });
 
-    const isInRoom = (socket.rooms && socket.rooms.has(`trip_${tripId}`)) || socket.tripId === tripId;
     if (!member && isInRoom && (activeUser.id || activeUser.name)) {
       // Auto-register connected room participant as member so real-time chat & collaboration never drop
       const newMemberObj = {
@@ -471,7 +475,7 @@ export function setupSocketIO(io) {
       });
     });
 
-    socket.on('message_reaction', async ({ tripId, messageId, emoji, user: reactionUser }) => {
+    socket.on('message_reaction', async ({ tripId, messageId, emoji, user: reactionUser, reactions: incomingReactions }) => {
       if (!socket.userData && (socket.user || reactionUser?.id)) {
         socket.userData = socket.user || reactionUser;
       }
@@ -480,7 +484,7 @@ export function setupSocketIO(io) {
 
       const user = socket.user || socket.userData || reactionUser;
       const trip = await dataService.getTripById(tripId);
-      let updatedReactions = null;
+      let updatedReactions = incomingReactions || null;
 
       if (trip && trip.chat) {
         const msg = trip.chat.find(m => m.id === messageId);

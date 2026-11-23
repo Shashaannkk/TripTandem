@@ -84,7 +84,7 @@ export const TripWorkspacePage = () => {
           if (prev && (norm(prev.id) === targetNorm || norm(prev.inviteCode) === targetNorm)) {
             const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
             const fetchedItemCount = (fetched.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-            if (prevItemCount >= fetchedItemCount && prevItemCount > 0) return prev;
+            if (prevItemCount >= fetchedItemCount) return prev;
           }
           return fetched;
         });
@@ -98,7 +98,7 @@ export const TripWorkspacePage = () => {
           if (prev && (norm(prev.id) === targetNorm || norm(prev.inviteCode) === targetNorm)) {
             const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
             const snapshotItemCount = (snapshot.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-            if (prevItemCount >= snapshotItemCount && prevItemCount > 0) return prev;
+            if (prevItemCount >= snapshotItemCount) return prev;
           }
           return snapshot;
         });

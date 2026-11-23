@@ -413,7 +413,11 @@ export const api = {
       }
     } catch (e) {}
 
-    return INITIAL_TRIP;
+    // Only return INITIAL_TRIP if the requested id matches INITIAL_TRIP or if no id was provided
+    if (!id || id === INITIAL_TRIP.id || id === INITIAL_TRIP.inviteCode) {
+      return INITIAL_TRIP;
+    }
+    return null;
   },
 
   async createTrip(tripData) {

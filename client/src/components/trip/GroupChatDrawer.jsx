@@ -134,7 +134,7 @@ export const GroupChatDrawer = () => {
     const isDirectAiQuery = isAiModeActive || /@(gemini|google|ai)/i.test(textToSend);
 
     // Send user message
-    sendChatMessage(textToSend);
+    sendChatMessage(textToSend, null, effectiveUser);
     setInputText('');
 
     // If query was addressed to Google AI, trigger side-by-side response
@@ -144,7 +144,7 @@ export const GroupChatDrawer = () => {
   };
 
   const handlePromptClick = async (promptText) => {
-    sendChatMessage(promptText);
+    sendChatMessage(promptText, null, effectiveUser);
     await triggerGoogleAiResponse(promptText);
   };
 
@@ -198,7 +198,7 @@ export const GroupChatDrawer = () => {
     };
 
     const caption = `🧾 I paid ₹${amountNum.toLocaleString()} for ${billTitle.trim()}! Split equally with the crew.`;
-    sendChatMessage(caption, attachment);
+    sendChatMessage(caption, attachment, effectiveUser);
 
     // Reset Bill Form
     setBillTitle('');
@@ -361,7 +361,7 @@ export const GroupChatDrawer = () => {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          reactToMessage(msg.id, emoji);
+                          reactToMessage(msg.id, emoji, effectiveUser);
                           setActiveReactionPickerId(null);
                         }}
                         className="w-7 h-7 flex items-center justify-center hover:scale-135 transition-transform text-sm active:scale-95 rounded-full hover:bg-brand-sand dark:hover:bg-slate-800"
@@ -526,7 +526,8 @@ export const GroupChatDrawer = () => {
                     {Object.entries(msg.reactions).map(([emoji, usersList]) => {
                       if (!usersList || usersList.length === 0) return null;
                       const hasUserReacted = usersList.some(
-                        (u) => (typeof u === 'string' ? u : u.id) === effectiveUser?.id
+                        (u) => (typeof u === 'string' ? u : u.id) === effectiveUser?.id ||
+                               (typeof u === 'object' && u.name && effectiveUser?.name && u.name.toLowerCase() === effectiveUser.name.toLowerCase())
                       );
                       const reactingNames = usersList
                         .map((u) => (typeof u === 'string' ? u : u.name))
@@ -536,7 +537,7 @@ export const GroupChatDrawer = () => {
                         <button
                           key={emoji}
                           type="button"
-                          onClick={() => reactToMessage(msg.id, emoji)}
+                          onClick={() => reactToMessage(msg.id, emoji, effectiveUser)}
                           title={`Reacted by: ${reactingNames} (Click to toggle)`}
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all shadow-xs ${
                             hasUserReacted
