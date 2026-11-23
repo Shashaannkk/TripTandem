@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { itineraryItemSchema } from './ItineraryItem.js';
+import { chatMessageSchema } from './ChatMessage.js';
 
 const expenseSchema = new mongoose.Schema(
   {
@@ -81,10 +82,12 @@ const tripSchema = new mongoose.Schema(
     },
     members: [memberSchema],
     days: [daySchema],
+    chat: [chatMessageSchema],
   },
   {
     timestamps: true,
     optimisticConcurrency: true,
+    strict: false,
   }
 );
 

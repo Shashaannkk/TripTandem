@@ -434,7 +434,7 @@ export function setupSocketIO(io) {
     // 5. Send Chat Message & Typing
     // -----------------------------------------------------------
     socket.on('send_message', async ({ tripId, message, token }) => {
-      if (!checkSocketRateLimit(socket, 'send_message', 40, 5000)) {
+      if (!checkSocketRateLimit(socket, 'send_message', 50, 5000)) {
         socket.emit('trip.error', { event: 'send_message', message: 'Chat rate limit exceeded. Please wait a moment.' });
         return;
       }
@@ -443,6 +443,9 @@ export function setupSocketIO(io) {
         const verified = await resolveSocketUser(token);
         if (verified) socket.user = verified;
       }
+
+      const isAiMessage = Boolean(message?.isAi || message?.senderId === 'google-gemini-ai');
+
       if (!socket.userData && (socket.user || message?.senderId)) {
         socket.userData = socket.user || {
           id: message.senderId,
@@ -450,25 +453,58 @@ export function setupSocketIO(io) {
           role: message.role || 'Planner',
         };
       }
-      const authCheck = await authorizeSocketTripAction(socket, tripId, ['Viewer', 'Planner', 'Leader', 'Admin']);
-      if (!authCheck.authorized) {
-        socket.emit('trip.error', { event: 'send_message', message: authCheck.error });
-        return;
+
+      if (!isAiMessage) {
+        const authCheck = await authorizeSocketTripAction(socket, tripId, ['Viewer', 'Planner', 'Leader', 'Admin']);
+        if (!authCheck.authorized) {
+          socket.emit('trip.error', { event: 'send_message', message: authCheck.error });
+          return;
+        }
       }
 
       const sender = socket.user || socket.userData || {};
       const safeMessage = {
         ...message,
         text: sanitizeString(message?.text || ''),
-        senderId: message.senderId || sender.id || 'unknown',
-        senderName: sanitizeString(message.senderName || sender.name || 'Traveler'),
+        senderId: isAiMessage ? 'google-gemini-ai' : (message.senderId || sender.id || 'unknown'),
+        senderName: isAiMessage ? 'Google Gemini AI' : sanitizeString(message.senderName || sender.name || 'Traveler'),
+        senderAvatar: isAiMessage ? '/cute_robot.jpg' : (message.senderAvatar || sender.avatar || ''),
+        isAi: isAiMessage,
+        attachment: message.attachment || null,
+        suggestions: message.suggestions || null,
       };
 
       const trip = await dataService.getTripById(tripId);
       if (trip) {
         if (!trip.chat) trip.chat = [];
         trip.chat.push(safeMessage);
-        await dataService.updateTrip(tripId, { chat: trip.chat });
+
+        if (safeMessage.attachment && safeMessage.attachment.type === 'bill' && safeMessage.attachment.amount > 0) {
+          const billExp = {
+            id: `exp-bill-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+            title: safeMessage.attachment.title || 'Shared Expense',
+            category: safeMessage.attachment.category || 'food',
+            amount: Number(safeMessage.attachment.amount) || 0,
+            paidBy: safeMessage.attachment.paidBy || safeMessage.senderName || 'Traveler',
+            splitWith: safeMessage.attachment.splitWith || [],
+            date: new Date().toISOString().split('T')[0],
+            type: 'actual',
+            receiptUrl: safeMessage.attachment.receiptUrl || null,
+            notes: 'Logged directly via Trip Chat',
+          };
+          if (!trip.budget) trip.budget = { expenses: [] };
+          if (!trip.budget.expenses) trip.budget.expenses = [];
+          trip.budget.expenses.push(billExp);
+          await dataService.updateTrip(tripId, { chat: trip.chat, budget: trip.budget });
+
+          io.to(`trip_${tripId}`).emit('budget_synced', {
+            tripId,
+            budget: trip.budget,
+            user: { id: safeMessage.senderId, name: safeMessage.senderName },
+          });
+        } else {
+          await dataService.updateTrip(tripId, { chat: trip.chat });
+        }
       }
 
       io.to(`trip_${tripId}`).emit('new_message', { message: safeMessage });

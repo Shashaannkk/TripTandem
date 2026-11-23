@@ -38,6 +38,7 @@ const allowedOrigins = process.env.CLIENT_URL
   : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'];
 
 const io = new Server(server, {
+  maxHttpBufferSize: 1e7,
   cors: {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or Postman)

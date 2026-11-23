@@ -16,6 +16,9 @@ export const chatMessageSchema = new mongoose.Schema(
     senderName: { type: String, required: true },
     senderAvatar: { type: String, default: '' },
     text: { type: String, required: true },
+    role: { type: String, default: 'Planner' },
+    attachment: { type: mongoose.Schema.Types.Mixed, default: null },
+    suggestions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     timestamp: { type: String, default: () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
     reactions: {
       type: Map,
@@ -27,6 +30,7 @@ export const chatMessageSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    strict: false,
   }
 );
 

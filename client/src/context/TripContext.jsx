@@ -290,10 +290,40 @@ export const TripProvider = ({ children }) => {
 
     if (type === 'NEW_CHAT_MESSAGE' && message) {
       setTrip(prev => {
-        if (!prev) return prev;
-        const chat = prev.chat || [];
-        if (chat.some(m => m.id === message.id)) return prev;
-        const updatedTrip = { ...prev, chat: [...chat, message] };
+        const base = prev || tripRef.current;
+        if (!base) return base;
+        const chat = base.chat || [];
+        if (chat.some(m => m.id === message.id)) return base;
+        const updatedTrip = { ...base, chat: [...chat, message] };
+
+        // If the incoming message has a bill attachment, sync to budget too!
+        if (message.attachment && message.attachment.type === 'bill' && message.attachment.amount > 0) {
+          const expTitle = message.attachment.title || 'Shared Expense';
+          const expPaidBy = message.attachment.paidBy || message.senderName || 'Traveler';
+          const expAmount = Number(message.attachment.amount) || 0;
+          if (!updatedTrip.budget) updatedTrip.budget = { expenses: [] };
+          const expenses = updatedTrip.budget.expenses || [];
+          const exists = expenses.some(e => e.title === expTitle && e.amount === expAmount && e.paidBy === expPaidBy);
+          if (!exists) {
+            const billExp = {
+              id: `exp-bill-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              title: expTitle,
+              category: message.attachment.category || 'food',
+              amount: expAmount,
+              paidBy: expPaidBy,
+              splitWith: message.attachment.splitWith || (updatedTrip.members || []).map(m => m.name),
+              date: new Date().toISOString().split('T')[0],
+              type: 'actual',
+              receiptUrl: message.attachment.receiptUrl || null,
+              notes: 'Logged directly via Trip Chat',
+            };
+            updatedTrip.budget = {
+              ...updatedTrip.budget,
+              expenses: [...expenses, billExp],
+            };
+          }
+        }
+
         try {
           localStorage.setItem('tt_active_trip', JSON.stringify(updatedTrip));
           const allStored = localStorage.getItem('tt_all_trips');
@@ -311,6 +341,8 @@ export const TripProvider = ({ children }) => {
       if (message.senderId !== activeUser?.id && message.senderName !== activeUser?.name) {
         if (message.isSystem) {
           showToast(`✨ ${message.text}`, 'info');
+        } else if (message.isAi || message.senderId === 'google-gemini-ai') {
+          showToast(`🤖 Google Gemini AI: ${message.text?.slice(0, 50)}...`, 'info');
         } else {
           showToast(`💬 ${message.senderName || 'Traveler'}: ${message.text?.slice(0, 45) || 'New message'}`, 'info');
         }
@@ -715,15 +747,49 @@ export const TripProvider = ({ children }) => {
     const handleNewMessage = ({ message }) => {
       if (!message || !message.id) return;
       setTrip(prev => {
-        if (!prev) return prev;
-        const chat = prev.chat || [];
-        if (chat.some(m => m.id === message.id)) return prev;
+        const base = prev || tripRef.current;
+        if (!base) return base;
+        const chat = base.chat || [];
+        if (chat.some(m => m.id === message.id)) return base;
         const updated = {
-          ...prev,
+          ...base,
           chat: [...chat, message],
         };
+
+        // If the incoming message has a bill attachment, sync to budget too!
+        if (message.attachment && message.attachment.type === 'bill' && message.attachment.amount > 0) {
+          const expTitle = message.attachment.title || 'Shared Expense';
+          const expPaidBy = message.attachment.paidBy || message.senderName || 'Traveler';
+          const expAmount = Number(message.attachment.amount) || 0;
+          if (!updated.budget) updated.budget = { expenses: [] };
+          const expenses = updated.budget.expenses || [];
+          const exists = expenses.some(e => e.title === expTitle && e.amount === expAmount && e.paidBy === expPaidBy);
+          if (!exists) {
+            const billExp = {
+              id: `exp-bill-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              title: expTitle,
+              category: message.attachment.category || 'food',
+              amount: expAmount,
+              paidBy: expPaidBy,
+              splitWith: message.attachment.splitWith || (updated.members || []).map(m => m.name),
+              date: new Date().toISOString().split('T')[0],
+              type: 'actual',
+              receiptUrl: message.attachment.receiptUrl || null,
+              notes: 'Logged directly via Trip Chat',
+            };
+            updated.budget = {
+              ...updated.budget,
+              expenses: [...expenses, billExp],
+            };
+          }
+        }
+
         try {
           localStorage.setItem('tt_active_trip', JSON.stringify(updated));
+          const allStored = localStorage.getItem('tt_all_trips');
+          const parsedAll = allStored ? JSON.parse(allStored) : [];
+          const updatedAll = [updated, ...parsedAll.filter(t => t.id !== updated.id)];
+          localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
         } catch (e) {}
         return updated;
       });
@@ -735,6 +801,8 @@ export const TripProvider = ({ children }) => {
       if (message.senderId !== activeUser?.id && message.senderName !== activeUser?.name) {
         if (message.isSystem) {
           showToast(`✨ ${message.text}`, 'info');
+        } else if (message.isAi || message.senderId === 'google-gemini-ai') {
+          showToast(`🤖 Google Gemini AI: ${message.text?.slice(0, 50)}...`, 'info');
         } else {
           showToast(`💬 ${message.senderName || 'Traveler'}: ${message.text?.slice(0, 45) || 'New message'}`, 'info');
         }

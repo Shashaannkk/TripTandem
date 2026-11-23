@@ -180,13 +180,35 @@ export const GroupChatDrawer = () => {
     }
   };
 
-  // Handle Receipt File Upload
+  // Handle Receipt File Upload with Auto-Compression (Resizes to max 800px JPEG to prevent websocket payload drop)
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setBillReceiptImage(reader.result);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setBillReceiptImage(compressed);
+        };
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
@@ -209,7 +231,7 @@ export const GroupChatDrawer = () => {
       title: billTitle.trim(),
       amount: amountNum,
       category: billCategory,
-      paidBy: billPaidBy,
+      paidBy: billPaidBy.trim() || effectiveUser?.name || 'Traveler',
       splitWith: allDisplayMembers.map(m => m.name),
       receiptUrl: billReceiptImage || SAMPLE_RECEIPTS[0].url,
     };
@@ -476,9 +498,9 @@ export const GroupChatDrawer = () => {
 
                       <div className="flex items-baseline justify-between pt-1 border-t border-brand-sand-border/50 dark:border-slate-700/50">
                         <div>
-                          <div className="font-semibold">{msg.attachment.title}</div>
+                          <div className="font-semibold text-brand-navy dark:text-white">{msg.attachment.title || 'Shared Expense'}</div>
                           <div className="text-[10px] text-brand-navy/60 dark:text-slate-400">
-                            Paid by {msg.attachment.paidBy} · {msg.attachment.category}
+                            Paid by <strong className="text-brand-teal">{msg.attachment.paidBy || msg.senderName || 'Traveler'}</strong> · {msg.attachment.category || 'food'}
                           </div>
                         </div>
                         <div className="text-right">
