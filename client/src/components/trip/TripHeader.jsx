@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -39,6 +39,23 @@ export const TripHeader = () => {
 
   const { formatPrice, currentUser } = useAuth();
   const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
+
+  const allDisplayMembers = useMemo(() => {
+    const list = [...(trip?.members || [])];
+    (activeCollaborators || []).forEach(ac => {
+      if (ac && ac.name && !list.some(m => (m.id && ac.id && m.id === ac.id) || (m.name && m.name.toLowerCase() === ac.name.toLowerCase()))) {
+        list.push({
+          id: ac.id || `collab-${ac.name}`,
+          name: ac.name,
+          role: ac.role || 'Planner',
+          avatar: ac.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          status: 'online',
+          color: ac.color || '#FF6B45'
+        });
+      }
+    });
+    return list;
+  }, [trip?.members, activeCollaborators]);
 
   if (!trip) return null;
 
@@ -192,7 +209,7 @@ export const TripHeader = () => {
             >
               <div className="text-right hidden sm:block">
                 <div className="text-xs font-semibold text-brand-navy flex items-center justify-end gap-1">
-                  <span>{(trip.members || []).length} Travelers</span>
+                  <span>{allDisplayMembers.length} {allDisplayMembers.length === 1 ? 'Traveler' : 'Travelers'}</span>
                 </div>
                 <div className="text-[11px] text-brand-teal font-medium flex items-center justify-end gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
@@ -201,7 +218,7 @@ export const TripHeader = () => {
               </div>
 
               <div className="flex items-center -space-x-2.5">
-                {(trip.members || []).map((member) => {
+                {allDisplayMembers.map((member) => {
                   const isOnline = activeCollaborators.some(c => c.id === member.id || (c.name && c.name === member.name)) || member.id === activeUser?.id || member.name === activeUser?.name || member.id === currentUser?.id;
                   return (
                     <div key={member.id} className="relative group">
@@ -235,7 +252,7 @@ export const TripHeader = () => {
                           Trip Planning Crew
                         </h3>
                         <p className="text-xs text-brand-navy/60 dark:text-slate-400">
-                          {(trip.members || []).length} real members joined
+                          {allDisplayMembers.length} real members joined
                         </p>
                       </div>
                     </div>
@@ -249,7 +266,7 @@ export const TripHeader = () => {
 
                   {/* Members List */}
                   <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-                    {(trip.members || []).map((m) => {
+                    {allDisplayMembers.map((m) => {
                       const isSelf = m.id === currentUser?.id;
                       const isLeader = trip.leaderUserId === currentUser?.id || trip.members?.[0]?.id === currentUser?.id;
                       const isMemberLeader = m.role === 'Leader' || m.role === 'Owner' || trip.leaderUserId === m.id;

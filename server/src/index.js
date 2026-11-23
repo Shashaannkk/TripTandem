@@ -12,6 +12,14 @@ import aiRoutes from './routes/aiRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import weatherRoutes from './routes/weatherRoutes.js';
 import { setupSocketIO } from './socket.js';
+import { 
+  secureHeadersMiddleware, 
+  securitySanitizerMiddleware, 
+  apiRateLimiter, 
+  authRateLimiter, 
+  aiRateLimiter, 
+  safeErrorHandler 
+} from './middleware/security.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,7 +61,8 @@ const io = new Server(server, {
 setupSocketIO(io);
 app.set('io', io);
 
-// Middleware
+// Enterprise Security & Hardening Middleware
+app.use(secureHeadersMiddleware);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
@@ -70,7 +79,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(securitySanitizerMiddleware);
+
+// Rate Limiters
+app.use('/api', apiRateLimiter);
+app.use('/api/auth', authRateLimiter);
+app.use('/api/ai', aiRateLimiter);
 
 // API Routes (v1 & legacy compatible)
 app.use('/api/venues', venuesRoutes);
@@ -83,6 +98,9 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/v1/trips', tripsRoutes);
 app.use('/api/v1/destinations', venuesRoutes);
 app.use('/api/v1/ai', aiRoutes);
+
+// Safe Centralized Error Handler
+app.use(safeErrorHandler);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

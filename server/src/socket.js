@@ -4,6 +4,7 @@ import { store } from './store.js';
 import { dataService } from './services/dataService.js';
 import { BudgetEngine } from './services/budgetService.js';
 import { getJwtSecret, JWT_SECRET } from './middleware/auth.js';
+import { checkSocketRateLimit, sanitizeString } from './middleware/security.js';
 
 export function setupSocketIO(io) {
   // Map of tripId -> Map(socketId -> userData)
@@ -433,6 +434,11 @@ export function setupSocketIO(io) {
     // 5. Send Chat Message & Typing
     // -----------------------------------------------------------
     socket.on('send_message', async ({ tripId, message, token }) => {
+      if (!checkSocketRateLimit(socket, 'send_message', 40, 5000)) {
+        socket.emit('trip.error', { event: 'send_message', message: 'Chat rate limit exceeded. Please wait a moment.' });
+        return;
+      }
+
       if (token && !socket.user) {
         const verified = await resolveSocketUser(token);
         if (verified) socket.user = verified;
@@ -453,8 +459,9 @@ export function setupSocketIO(io) {
       const sender = socket.user || socket.userData || {};
       const safeMessage = {
         ...message,
-        senderId: sender.id || message.senderId,
-        senderName: sender.name || message.senderName,
+        text: sanitizeString(message?.text || ''),
+        senderId: message.senderId || sender.id || 'unknown',
+        senderName: sanitizeString(message.senderName || sender.name || 'Traveler'),
       };
 
       const trip = await dataService.getTripById(tripId);
@@ -476,6 +483,10 @@ export function setupSocketIO(io) {
     });
 
     socket.on('message_reaction', async ({ tripId, messageId, emoji, user: reactionUser, reactions: incomingReactions }) => {
+      if (!checkSocketRateLimit(socket, 'message_reaction', 60, 5000)) {
+        return;
+      }
+
       if (!socket.userData && (socket.user || reactionUser?.id)) {
         socket.userData = socket.user || reactionUser;
       }

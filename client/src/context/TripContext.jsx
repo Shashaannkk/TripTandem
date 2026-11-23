@@ -625,10 +625,12 @@ export const TripProvider = ({ children }) => {
       if (joinedUser && joinedUser.id !== currentUser?.id) {
         showToast(`${joinedUser.name} joined the trip workspace 👋`, 'info');
         setTrip(prev => {
-          if (!prev || !prev.members) return prev;
-          const exists = prev.members.some(
+          if (!prev) return prev;
+          const currentMembers = prev.members || [];
+          const exists = currentMembers.some(
             m => (m.id && joinedUser.id && m.id === joinedUser.id) ||
-                 (m.email && joinedUser.email && m.email.toLowerCase() === joinedUser.email.toLowerCase())
+                 (m.email && joinedUser.email && m.email.toLowerCase() === joinedUser.email.toLowerCase()) ||
+                 (m.name && joinedUser.name && m.name.toLowerCase() === joinedUser.name.toLowerCase())
           );
           if (!exists) {
             const newM = {
@@ -640,10 +642,18 @@ export const TripProvider = ({ children }) => {
               color: joinedUser.color || '#FF6B45',
               status: 'online',
             };
-            return {
+            const updated = {
               ...prev,
-              members: [...prev.members, newM],
+              members: [...currentMembers, newM],
             };
+            try {
+              localStorage.setItem('tt_active_trip', JSON.stringify(updated));
+              const allStored = localStorage.getItem('tt_all_trips');
+              const parsedAll = allStored ? JSON.parse(allStored) : [];
+              const updatedAll = [updated, ...parsedAll.filter(t => t.id !== updated.id)];
+              localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+            } catch (e) {}
+            return updated;
           }
           return prev;
         });
@@ -654,9 +664,14 @@ export const TripProvider = ({ children }) => {
       if (syncedTrip) {
         setTrip(prev => {
           if (!prev) return syncedTrip;
-          const mergedMembers = syncedTrip.members && syncedTrip.members.length >= (prev.members || []).length
-            ? syncedTrip.members
-            : prev.members;
+          const currentMembers = prev.members || [];
+          const incomingMembers = syncedTrip.members || [];
+          const mergedMembers = [...currentMembers];
+          incomingMembers.forEach(im => {
+            const idx = mergedMembers.findIndex(m => (m.id && im.id && m.id === im.id) || (m.name && im.name && m.name.toLowerCase() === im.name.toLowerCase()));
+            if (idx >= 0) mergedMembers[idx] = { ...mergedMembers[idx], ...im };
+            else mergedMembers.push(im);
+          });
           const merged = { ...syncedTrip, members: mergedMembers };
           try {
             localStorage.setItem('tt_active_trip', JSON.stringify(merged));
@@ -1609,28 +1624,34 @@ export const TripProvider = ({ children }) => {
 
   // Instagram / WhatsApp-style emoji reactions
   const reactToMessage = (messageId, emoji, customUser = null) => {
-    let updatedReactions = null;
     const actor = customUser || activeUser;
     const currentTrip = tripRef.current || trip;
+    if (!currentTrip || !currentTrip.chat) return;
+
+    const targetMsg = (currentTrip.chat || []).find(m => m.id === messageId);
+    if (!targetMsg) return;
+
+    // Synchronously compute updated reactions so socket and broadcast NEVER receive null
+    const nextReactions = JSON.parse(JSON.stringify(targetMsg.reactions || {}));
+    if (!nextReactions[emoji]) nextReactions[emoji] = [];
+
+    const userIdx = nextReactions[emoji].findIndex(
+      u => (typeof u === 'string' ? u : u.id) === actor.id || (typeof u === 'object' && u.name && actor.name && u.name.toLowerCase() === actor.name.toLowerCase())
+    );
+    if (userIdx >= 0) {
+      nextReactions[emoji].splice(userIdx, 1);
+      if (nextReactions[emoji].length === 0) delete nextReactions[emoji];
+    } else {
+      nextReactions[emoji].push({ id: actor.id, name: actor.name });
+    }
+
+    const updatedReactions = nextReactions;
 
     setTrip(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+      const next = JSON.parse(JSON.stringify(prev || currentTrip));
       const msg = (next.chat || []).find(m => m.id === messageId);
       if (!msg) return prev;
-      if (!msg.reactions) msg.reactions = {};
-      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-
-      const userIdx = msg.reactions[emoji].findIndex(
-        u => (typeof u === 'string' ? u : u.id) === actor.id || (typeof u === 'object' && u.name && actor.name && u.name.toLowerCase() === actor.name.toLowerCase())
-      );
-      if (userIdx >= 0) {
-        msg.reactions[emoji].splice(userIdx, 1);
-        if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
-      } else {
-        msg.reactions[emoji].push({ id: actor.id, name: actor.name });
-      }
-
-      updatedReactions = msg.reactions;
+      msg.reactions = updatedReactions;
 
       try {
         localStorage.setItem('tt_active_trip', JSON.stringify(next));

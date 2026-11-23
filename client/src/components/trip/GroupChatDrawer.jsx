@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   X, 
   Send, 
@@ -37,9 +37,26 @@ export const GroupChatDrawer = () => {
     setIsInviteModalOpen,
     acceptAiSuggestion,
     activeUser: contextActiveUser,
+    activeCollaborators,
   } = useTrip();
   const { currentUser, formatPrice, showToast } = useAuth();
   const effectiveUser = contextActiveUser || currentUser;
+
+  const allDisplayMembers = useMemo(() => {
+    const list = [...(trip?.members || [])];
+    (activeCollaborators || []).forEach(ac => {
+      if (ac && ac.name && !list.some(m => (m.id && ac.id && m.id === ac.id) || (m.name && m.name.toLowerCase() === ac.name.toLowerCase()))) {
+        list.push({
+          id: ac.id || `collab-${ac.name}`,
+          name: ac.name,
+          role: ac.role || 'Planner',
+          avatar: ac.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          status: 'online'
+        });
+      }
+    });
+    return list;
+  }, [trip?.members, activeCollaborators]);
 
   const [inputText, setInputText] = useState('');
   const [showBillForm, setShowBillForm] = useState(false);
@@ -193,7 +210,7 @@ export const GroupChatDrawer = () => {
       amount: amountNum,
       category: billCategory,
       paidBy: billPaidBy,
-      splitWith: trip?.members?.map(m => m.name) || [],
+      splitWith: allDisplayMembers.map(m => m.name),
       receiptUrl: billReceiptImage || SAMPLE_RECEIPTS[0].url,
     };
 
@@ -228,7 +245,7 @@ export const GroupChatDrawer = () => {
             </div>
             <p className="text-[11px] text-brand-teal font-medium flex items-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{trip?.members?.length || 4} collaborators + Google AI Companion connected</span>
+              <span>{allDisplayMembers.length} {allDisplayMembers.length === 1 ? 'collaborator' : 'collaborators'} + Google AI Companion connected</span>
             </p>
           </div>
         </div>
@@ -469,7 +486,7 @@ export const GroupChatDrawer = () => {
                             {formatPrice(msg.attachment.amount)}
                           </div>
                           <div className="text-[10px] text-brand-navy/60 dark:text-slate-400">
-                            ~{formatPrice(Math.round(msg.attachment.amount / (trip?.members?.length || 4)))} / person
+                            ~{formatPrice(Math.round(msg.attachment.amount / Math.max(1, allDisplayMembers.length)))} / person
                           </div>
                         </div>
                       </div>
