@@ -80,14 +80,28 @@ export const TripWorkspacePage = () => {
     // 4. Check server API
     api.getTripById(tripId).then(fetched => {
       if (fetched && (norm(fetched.id) === targetNorm || norm(fetched.inviteCode) === targetNorm)) {
-        setTrip(fetched);
+        setTrip(prev => {
+          if (prev && (norm(prev.id) === targetNorm || norm(prev.inviteCode) === targetNorm)) {
+            const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            const fetchedItemCount = (fetched.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            if (prevItemCount >= fetchedItemCount && prevItemCount > 0) return prev;
+          }
+          return fetched;
+        });
       }
     });
 
     // 5. Query Cloud Relay Snapshot (for cross-device / direct URL visits)
     fetchTripSnapshot(tripId).then(snapshot => {
       if (snapshot && (norm(snapshot.id) === targetNorm || norm(snapshot.inviteCode) === targetNorm || (targetNorm.length >= 4 && norm(snapshot.inviteCode).includes(targetNorm)))) {
-        setTrip(snapshot);
+        setTrip(prev => {
+          if (prev && (norm(prev.id) === targetNorm || norm(prev.inviteCode) === targetNorm)) {
+            const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            const snapshotItemCount = (snapshot.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+            if (prevItemCount >= snapshotItemCount && prevItemCount > 0) return prev;
+          }
+          return snapshot;
+        });
       }
     });
   }, [tripId, setTrip]);

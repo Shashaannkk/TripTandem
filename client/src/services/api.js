@@ -398,6 +398,21 @@ export const api = {
     } catch (e) {
       console.warn('Trip fetch fallback', e);
     }
+    // Check local storage for custom/planned trips before falling back to INITIAL_TRIP
+    try {
+      const storedActive = localStorage.getItem('tt_active_trip');
+      if (storedActive) {
+        const parsed = JSON.parse(storedActive);
+        if (parsed.id === id || parsed.inviteCode === id) return parsed;
+      }
+      const storedAll = localStorage.getItem('tt_all_trips');
+      if (storedAll) {
+        const parsedList = JSON.parse(storedAll);
+        const match = parsedList.find(t => t.id === id || t.inviteCode === id);
+        if (match) return match;
+      }
+    } catch (e) {}
+
     return INITIAL_TRIP;
   },
 

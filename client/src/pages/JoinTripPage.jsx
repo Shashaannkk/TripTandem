@@ -119,13 +119,20 @@ export const JoinTripPage = () => {
 
     setIsJoining(true);
     try {
+      const hasCustomName = Boolean(customName.trim() && (!currentUser || customName.trim() !== currentUser.name));
       const finalName = customName.trim() || effectiveUser?.name || 'Guest Traveler';
+      const joinId = hasCustomName || !currentUser
+        ? `user-guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+        : currentUser.id;
+
       const joiningUser = {
-        ...effectiveUser,
-        id: effectiveUser?.id || `user-guest-${Date.now().toString(36)}`,
+        id: joinId,
         name: finalName,
-        email: effectiveUser?.email || `${finalName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
+        email: `${finalName.toLowerCase().replace(/[^a-z0-9]/g, '')}@triptandem.travel`,
         role: selectedRole || 'Planner',
+        avatar: effectiveUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        color: '#2A9D8F',
+        status: 'online',
       };
       try {
         sessionStorage.setItem('tt_traveler_identity', JSON.stringify(joiningUser));

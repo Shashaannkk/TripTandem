@@ -39,7 +39,7 @@ export const GroupChatDrawer = () => {
     activeUser: contextActiveUser,
   } = useTrip();
   const { currentUser, formatPrice, showToast } = useAuth();
-  const effectiveUser = currentUser || contextActiveUser;
+  const effectiveUser = contextActiveUser || currentUser;
 
   const [inputText, setInputText] = useState('');
   const [showBillForm, setShowBillForm] = useState(false);

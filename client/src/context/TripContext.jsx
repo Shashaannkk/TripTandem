@@ -19,13 +19,15 @@ export const TripProvider = ({ children }) => {
 
   // Resilient traveler identity fallback (per-tab session isolated for multi-window testing)
   const getActiveUser = useCallback(() => {
-    if (currentUser && currentUser.id) return currentUser;
     try {
       const sessionSaved = sessionStorage.getItem('tt_traveler_identity');
       if (sessionSaved) {
         const parsed = JSON.parse(sessionSaved);
         if (parsed && parsed.id && parsed.name) return parsed;
       }
+    } catch {}
+    if (currentUser && currentUser.id) return currentUser;
+    try {
       const saved = localStorage.getItem('tt_traveler_identity');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -53,8 +55,8 @@ export const TripProvider = ({ children }) => {
   }, [currentUser]);
 
   const activeUser = useMemo(() => {
-    return currentUser || getActiveUser();
-  }, [currentUser, getActiveUser]);
+    return getActiveUser();
+  }, [getActiveUser]);
 
   const [trip, setTrip] = useState(() => {
     const saved = localStorage.getItem('tt_active_trip');
@@ -115,6 +117,11 @@ export const TripProvider = ({ children }) => {
   const lastCursorEmitRef = useRef(0);
   const typingTimeoutsRef = useRef({});
   const clientIdRef = useRef(`client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+  const broadcastChannelRef = useRef(null);
+  const tripRef = useRef(trip);
+  useEffect(() => {
+    tripRef.current = trip;
+  }, [trip]);
   const tripSyncTimerRef = useRef(null);
   const [isCloudRelayConnected, setIsCloudRelayConnected] = useState(false);
 
@@ -191,12 +198,20 @@ export const TripProvider = ({ children }) => {
       };
 
       // 1. Post to BroadcastChannel (0ms latency across same-browser tabs)
-      if (typeof BroadcastChannel !== 'undefined') {
-        const bc = new BroadcastChannel('triptandem_live_sync');
-        bc.postMessage(payload);
-        setTimeout(() => {
-          try { bc.close(); } catch (e) {}
-        }, 500);
+      if (broadcastChannelRef.current) {
+        try {
+          broadcastChannelRef.current.postMessage(payload);
+        } catch (e) {
+          try {
+            const bc = new BroadcastChannel('triptandem_live_sync');
+            bc.postMessage(payload);
+          } catch (err) {}
+        }
+      } else if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          const bc = new BroadcastChannel('triptandem_live_sync');
+          bc.postMessage(payload);
+        } catch (e) {}
       }
 
       // 2. High-reliability localStorage event (100% supported across all tabs & windows)
@@ -271,12 +286,12 @@ export const TripProvider = ({ children }) => {
 
     // Check if message belongs to current room
     const normStr = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const currentTripIdNorm = normStr(trip?.id);
-    const currentTripCodeNorm = normStr(trip?.inviteCode);
+    const currentTripIdNorm = normStr(tripRef.current?.id || trip?.id);
+    const currentTripCodeNorm = normStr(tripRef.current?.inviteCode || trip?.inviteCode);
     const eventTripIdNorm = normStr(tripId || eventData?.trip?.id);
     const eventTripCodeNorm = normStr(eventData?.inviteCode || eventData?.trip?.inviteCode);
 
-    const isCurrentRoom = !trip?.id || 
+    const isCurrentRoom = !currentTripIdNorm || 
       (eventTripIdNorm && (eventTripIdNorm === currentTripIdNorm || eventTripIdNorm === currentTripCodeNorm)) ||
       (eventTripCodeNorm && (eventTripCodeNorm === currentTripCodeNorm || eventTripCodeNorm === currentTripIdNorm)) ||
       (eventTripIdNorm && eventTripIdNorm.length >= 4 && (currentTripIdNorm.includes(eventTripIdNorm) || currentTripCodeNorm.includes(eventTripIdNorm) || eventTripIdNorm.includes(currentTripIdNorm) || eventTripIdNorm.includes(currentTripCodeNorm))) ||
@@ -436,20 +451,24 @@ export const TripProvider = ({ children }) => {
         showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
       }
     }
-    if (type === 'MESSAGE_REACTION' && eventData.messageId && eventData.emoji) {
+    if (type === 'MESSAGE_REACTION' && eventData.messageId) {
       setTrip(prev => {
         if (!prev) return prev;
         const next = JSON.parse(JSON.stringify(prev));
         const msg = (next.chat || []).find(m => m.id === eventData.messageId);
         if (!msg) return prev;
-        if (!msg.reactions) msg.reactions = {};
-        if (!msg.reactions[eventData.emoji]) msg.reactions[eventData.emoji] = [];
-        const userIdx = msg.reactions[eventData.emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === eventData.user?.id);
-        if (userIdx >= 0) {
-          msg.reactions[eventData.emoji].splice(userIdx, 1);
-          if (msg.reactions[eventData.emoji].length === 0) delete msg.reactions[eventData.emoji];
-        } else {
-          msg.reactions[eventData.emoji].push(eventData.user || { id: 'unknown', name: 'Traveler' });
+        if (eventData.reactions) {
+          msg.reactions = eventData.reactions;
+        } else if (eventData.emoji) {
+          if (!msg.reactions) msg.reactions = {};
+          if (!msg.reactions[eventData.emoji]) msg.reactions[eventData.emoji] = [];
+          const userIdx = msg.reactions[eventData.emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === eventData.user?.id);
+          if (userIdx >= 0) {
+            msg.reactions[eventData.emoji].splice(userIdx, 1);
+            if (msg.reactions[eventData.emoji].length === 0) delete msg.reactions[eventData.emoji];
+          } else {
+            msg.reactions[eventData.emoji].push(eventData.user || { id: 'unknown', name: 'Traveler' });
+          }
         }
         try {
           localStorage.setItem('tt_active_trip', JSON.stringify(next));
@@ -468,23 +487,23 @@ export const TripProvider = ({ children }) => {
 
   // 1. Cross-Tab BroadcastChannel Listener (Same-browser multi-tab - connects once and stays connected)
   useEffect(() => {
-    let channel = null;
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        channel = new BroadcastChannel('triptandem_live_sync');
+        const channel = new BroadcastChannel('triptandem_live_sync');
+        broadcastChannelRef.current = channel;
         channel.onmessage = (event) => {
           if (handleIncomingRealtimeEventRef.current) {
             handleIncomingRealtimeEventRef.current(event.data);
           }
         };
+        return () => {
+          try { channel.close(); } catch (e) {}
+          broadcastChannelRef.current = null;
+        };
       }
     } catch (e) {
       console.warn('BroadcastChannel sync init:', e);
     }
-
-    return () => {
-      if (channel) channel.close();
-    };
   }, []);
 
   // 2. Cloud Relay WebSocket Listener (Cross-Device, Mobile, Cross-Browser & Incognito)
@@ -510,40 +529,6 @@ export const TripProvider = ({ children }) => {
     };
   }, [trip?.inviteCode, trip?.id]);
 
-  // 2b. Background Cloud Snapshot Reconciliation (Every 4.5s) to guarantee zero dropped events
-  useEffect(() => {
-    if (!trip?.inviteCode && !trip?.id) return;
-    const interval = setInterval(async () => {
-      try {
-        const code = trip?.inviteCode || trip?.id;
-        const snapshot = await fetchTripSnapshot(code, 0);
-        if (snapshot && snapshot.id) {
-          setTrip(prev => {
-            if (!prev) return snapshot;
-            const currentItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-            const snapshotItemCount = (snapshot.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
-            const currentChatCount = (prev.chat || []).length;
-            const snapshotChatCount = (snapshot.chat || []).length;
-
-            if (snapshotItemCount > currentItemCount || snapshotChatCount > currentChatCount) {
-              const mergedMembers = snapshot.members && snapshot.members.length >= (prev.members || []).length
-                ? snapshot.members
-                : prev.members;
-              const merged = { ...snapshot, members: mergedMembers };
-              try {
-                localStorage.setItem('tt_active_trip', JSON.stringify(merged));
-              } catch (e) {}
-              return merged;
-            }
-            return prev;
-          });
-        }
-      } catch (e) {}
-    }, 4500);
-
-    return () => clearInterval(interval);
-  }, [trip?.inviteCode, trip?.id]);
-
   // 3. Resilient LocalStorage & Cloud Snapshot Auto-Persist on Trip Mutation
   useEffect(() => {
     if (!trip || !trip.id) return;
@@ -566,7 +551,7 @@ export const TripProvider = ({ children }) => {
     };
   }, [trip]);
 
-  // Multi-tab storage event synchronization
+  // Multi-tab storage event synchronization (listens to dedicated tt_live_event channel)
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'tt_live_event' && e.newValue) {
@@ -574,14 +559,6 @@ export const TripProvider = ({ children }) => {
           const parsed = JSON.parse(e.newValue);
           if (parsed && parsed.payload && handleIncomingRealtimeEventRef.current) {
             handleIncomingRealtimeEventRef.current(parsed.payload);
-          }
-        } catch (err) {}
-      }
-      if (e.key === 'tt_active_trip' && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (parsed && parsed.id) {
-            setTrip(parsed);
           }
         } catch (err) {}
       }
@@ -625,7 +602,21 @@ export const TripProvider = ({ children }) => {
     const emitJoin = () => {
       socket.emit('join_trip', joinPayload, (ack) => {
         if (ack && ack.success) {
-          if (ack.trip) setTrip(ack.trip);
+          if (ack.trip) {
+            setTrip(prev => {
+              if (!prev) return ack.trip;
+              const prevItemCount = (prev.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+              const ackItemCount = (ack.trip.days || []).reduce((acc, d) => acc + (d.items || []).length, 0);
+              if (ackItemCount >= prevItemCount) {
+                return ack.trip;
+              } else {
+                const mergedMembers = ack.trip.members && ack.trip.members.length >= (prev.members || []).length
+                  ? ack.trip.members
+                  : prev.members;
+                return { ...prev, members: mergedMembers };
+              }
+            });
+          }
           if (ack.activeUsers) setActiveCollaborators(ack.activeUsers);
         }
       });
@@ -668,8 +659,22 @@ export const TripProvider = ({ children }) => {
 
     const handleItinerarySynced = ({ trip: syncedTrip, changeDescription, updatedBy }) => {
       if (syncedTrip) {
-        setTrip(syncedTrip);
-        if (updatedBy && updatedBy.id !== currentUser?.id) {
+        setTrip(prev => {
+          if (!prev) return syncedTrip;
+          const mergedMembers = syncedTrip.members && syncedTrip.members.length >= (prev.members || []).length
+            ? syncedTrip.members
+            : prev.members;
+          const merged = { ...syncedTrip, members: mergedMembers };
+          try {
+            localStorage.setItem('tt_active_trip', JSON.stringify(merged));
+            const allStored = localStorage.getItem('tt_all_trips');
+            const parsedAll = allStored ? JSON.parse(allStored) : [];
+            const updatedAll = [merged, ...parsedAll.filter(t => t.id !== merged.id)];
+            localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+          } catch (e) {}
+          return merged;
+        });
+        if (updatedBy && updatedBy.id !== activeUser?.id && updatedBy.name !== activeUser?.name) {
           showToast(`${updatedBy.name}: ${changeDescription || 'Updated itinerary'}`, 'info');
         }
       }
@@ -705,17 +710,21 @@ export const TripProvider = ({ children }) => {
         if (!prev) return prev;
         const chat = prev.chat || [];
         if (chat.some(m => m.id === message.id)) return prev;
-        return {
+        const updated = {
           ...prev,
           chat: [...chat, message],
         };
+        try {
+          localStorage.setItem('tt_active_trip', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
       });
 
       if (!isChatOpen) {
         setUnreadChatCount(prev => prev + 1);
       }
 
-      if (message.senderId !== activeUser?.id) {
+      if (message.senderId !== activeUser?.id && message.senderName !== activeUser?.name) {
         if (message.isSystem) {
           showToast(`✨ ${message.text}`, 'info');
         } else {
@@ -760,6 +769,7 @@ export const TripProvider = ({ children }) => {
 
     const handleReactionSynced = ({ messageId, emoji, user, reactions }) => {
       setTrip(prev => {
+        if (!prev) return prev;
         const next = JSON.parse(JSON.stringify(prev));
         const msg = (next.chat || []).find(m => m.id === messageId);
         if (msg) {
@@ -768,14 +778,17 @@ export const TripProvider = ({ children }) => {
           } else {
             if (!msg.reactions) msg.reactions = {};
             if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-            const existingIdx = msg.reactions[emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === user.id);
+            const existingIdx = msg.reactions[emoji].findIndex(u => (typeof u === 'string' ? u : u.id) === user?.id);
             if (existingIdx >= 0) {
               msg.reactions[emoji].splice(existingIdx, 1);
               if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
             } else {
-              msg.reactions[emoji].push({ id: user.id, name: user.name });
+              msg.reactions[emoji].push({ id: user?.id || 'unknown', name: user?.name || 'Traveler' });
             }
           }
+          try {
+            localStorage.setItem('tt_active_trip', JSON.stringify(next));
+          } catch (e) {}
         }
         return next;
       });
@@ -814,11 +827,21 @@ export const TripProvider = ({ children }) => {
             }
           ];
 
-          return {
+          const merged = {
             ...base,
             members: updatedMembers,
             chat: updatedChat,
           };
+
+          try {
+            localStorage.setItem('tt_active_trip', JSON.stringify(merged));
+            const allStored = localStorage.getItem('tt_all_trips');
+            const parsedAll = allStored ? JSON.parse(allStored) : [];
+            const updatedAll = [merged, ...parsedAll.filter(t => t.id !== merged.id)];
+            localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
+          } catch (e) {}
+
+          return merged;
         });
 
         setActiveCollaborators(prev => [...prev.filter(c => c.id !== incomingMember.id && c.name !== incomingMember.name), { ...incomingMember, status: 'online' }]);
@@ -1000,29 +1023,6 @@ export const TripProvider = ({ children }) => {
     };
   }, [socket, trip?.id, currentUser]);
 
-  // Persist trip to localStorage
-  useEffect(() => {
-    if (trip) {
-      localStorage.setItem('tt_active_trip', JSON.stringify(trip));
-    }
-  }, [trip]);
-
-  // Multi-tab storage sync (updates tabs on same browser profile)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'tt_active_trip' && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (parsed && parsed.id) {
-            setTrip(parsed);
-          }
-        } catch (err) {}
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
   // Actions
   const castVote = (itemId, voteType = 'up') => {
     setTrip(prev => {
@@ -1099,6 +1099,10 @@ export const TripProvider = ({ children }) => {
   };
 
   const addActivity = (dayNumber = 1, timeSlot = 'afternoon', activityData = {}) => {
+    let nextTripSnapshot = null;
+    let addedItemTitle = '';
+    let targetDayNum = dayNumber;
+
     setTrip(prev => {
       let targetTrip = prev;
       if (!targetTrip) {
@@ -1122,7 +1126,7 @@ export const TripProvider = ({ children }) => {
       }
       if (!Array.isArray(day.items)) day.items = [];
 
-      const currentUserId = currentUser?.id || activeUser?.id || 'user-1';
+      const currentUserId = activeUser?.id || currentUser?.id || 'user-1';
 
       const newItem = {
         id: `item-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1144,6 +1148,8 @@ export const TripProvider = ({ children }) => {
       };
 
       day.items.push(newItem);
+      addedItemTitle = newItem.title;
+      targetDayNum = day.dayNumber;
 
       // Rebalance category budget dynamically from actual itinerary items
       if (next.budget) {
@@ -1166,31 +1172,36 @@ export const TripProvider = ({ children }) => {
         localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
       } catch (e) {}
 
+      nextTripSnapshot = next;
+      return next;
+    });
+
+    if (nextTripSnapshot) {
       if (socket) {
         socket.emit('itinerary_change', {
-          tripId: next.id,
-          trip: next,
-          changeDescription: `Added "${newItem.title}" to Day ${day.dayNumber}`,
-          updatedBy: currentUser || activeUser,
+          tripId: nextTripSnapshot.id,
+          trip: nextTripSnapshot,
+          changeDescription: `Added "${addedItemTitle}" to Day ${targetDayNum}`,
+          updatedBy: activeUser || currentUser,
         });
       }
 
       broadcastSync({
         type: 'ITINERARY_SYNC',
-        tripId: next.id,
-        inviteCode: next.inviteCode,
-        trip: next,
-        changeDescription: `Added "${newItem.title}" to Day ${day.dayNumber}`,
-        updatedBy: currentUser || activeUser,
+        tripId: nextTripSnapshot.id,
+        inviteCode: nextTripSnapshot.inviteCode,
+        trip: nextTripSnapshot,
+        changeDescription: `Added "${addedItemTitle}" to Day ${targetDayNum}`,
+        updatedBy: activeUser || currentUser,
       });
-      publishTripSnapshot(next);
-
-      showToast(`Added "${newItem.title}" to Day ${day.dayNumber} as Draft! ✨`, 'success');
-      return next;
-    });
+      publishTripSnapshot(nextTripSnapshot);
+      showToast(`Added "${addedItemTitle}" to Day ${targetDayNum} as Draft! ✨`, 'success');
+    }
   };
 
   const updateActivity = (itemId, updates) => {
+    let nextTripSnapshot = null;
+
     setTrip(prev => {
       if (!prev || !prev.days) return prev;
       const next = JSON.parse(JSON.stringify(prev));
@@ -1202,25 +1213,6 @@ export const TripProvider = ({ children }) => {
         }
       }
 
-      if (socket) {
-        socket.emit('itinerary_change', {
-          tripId: next.id,
-          trip: next,
-          changeDescription: `Updated activity details`,
-          updatedBy: currentUser || activeUser,
-        });
-      }
-
-      broadcastSync({
-        type: 'ITINERARY_SYNC',
-        tripId: next.id,
-        inviteCode: next.inviteCode,
-        trip: next,
-        changeDescription: `Updated activity details`,
-        updatedBy: currentUser || activeUser,
-      });
-      publishTripSnapshot(next);
-
       try {
         localStorage.setItem('tt_active_trip', JSON.stringify(next));
         const allStored = localStorage.getItem('tt_all_trips');
@@ -1229,15 +1221,39 @@ export const TripProvider = ({ children }) => {
         localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
       } catch (e) {}
 
+      nextTripSnapshot = next;
       return next;
     });
+
+    if (nextTripSnapshot) {
+      if (socket) {
+        socket.emit('itinerary_change', {
+          tripId: nextTripSnapshot.id,
+          trip: nextTripSnapshot,
+          changeDescription: `Updated activity details`,
+          updatedBy: activeUser || currentUser,
+        });
+      }
+
+      broadcastSync({
+        type: 'ITINERARY_SYNC',
+        tripId: nextTripSnapshot.id,
+        inviteCode: nextTripSnapshot.inviteCode,
+        trip: nextTripSnapshot,
+        changeDescription: `Updated activity details`,
+        updatedBy: activeUser || currentUser,
+      });
+      publishTripSnapshot(nextTripSnapshot);
+    }
   };
 
   const removeActivity = (itemId) => {
+    let nextTripSnapshot = null;
+    let removedName = '';
+
     setTrip(prev => {
       if (!prev || !prev.days) return prev;
       const next = JSON.parse(JSON.stringify(prev));
-      let removedName = '';
       for (const day of next.days) {
         const idx = (day.items || []).findIndex(i => i.id === itemId);
         if (idx !== -1) {
@@ -1268,28 +1284,32 @@ export const TripProvider = ({ children }) => {
         localStorage.setItem('tt_all_trips', JSON.stringify(updatedAll));
       } catch (e) {}
 
+      nextTripSnapshot = next;
+      return next;
+    });
+
+    if (nextTripSnapshot) {
       if (socket) {
         socket.emit('itinerary_change', {
-          tripId: next.id,
-          trip: next,
+          tripId: nextTripSnapshot.id,
+          trip: nextTripSnapshot,
           changeDescription: `Removed "${removedName}"`,
-          updatedBy: currentUser,
+          updatedBy: activeUser || currentUser,
         });
       }
 
       broadcastSync({
         type: 'ITINERARY_SYNC',
-        tripId: next.id,
-        inviteCode: next.inviteCode,
-        trip: next,
+        tripId: nextTripSnapshot.id,
+        inviteCode: nextTripSnapshot.inviteCode,
+        trip: nextTripSnapshot,
         changeDescription: `Removed "${removedName}"`,
-        updatedBy: currentUser || activeUser,
+        updatedBy: activeUser || currentUser,
       });
-      publishTripSnapshot(next);
+      publishTripSnapshot(nextTripSnapshot);
+    }
 
-      showToast(`Removed "${removedName}"`, 'info');
-      return next;
-    });
+    showToast(`Removed "${removedName}"`, 'info');
   };
 
   const reorderActivity = ({ itemId, dayNumber, targetIndex, positionVersion }) => {
@@ -1592,6 +1612,8 @@ export const TripProvider = ({ children }) => {
 
   // Instagram / WhatsApp-style emoji reactions
   const reactToMessage = (messageId, emoji) => {
+    let updatedReactions = null;
+
     setTrip(prev => {
       const next = JSON.parse(JSON.stringify(prev));
       const msg = (next.chat || []).find(m => m.id === messageId);
@@ -1606,6 +1628,8 @@ export const TripProvider = ({ children }) => {
       } else {
         msg.reactions[emoji].push({ id: activeUser.id, name: activeUser.name });
       }
+
+      updatedReactions = msg.reactions;
 
       try {
         localStorage.setItem('tt_active_trip', JSON.stringify(next));
@@ -1625,6 +1649,7 @@ export const TripProvider = ({ children }) => {
         messageId,
         emoji,
         user: { id: activeUser.id, name: activeUser.name },
+        reactions: updatedReactions,
         token: token || undefined,
       });
     }
@@ -1637,6 +1662,7 @@ export const TripProvider = ({ children }) => {
       messageId,
       emoji,
       user: { id: activeUser.id, name: activeUser.name },
+      reactions: updatedReactions,
     });
   };
 
